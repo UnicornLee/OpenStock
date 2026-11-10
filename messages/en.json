@@ -83,7 +83,8 @@
       "commodityFX": "Commodity FX",
       "banksInsurance": "Banks & insurance",
       "energyIndustry": "Energy & industry",
-      "consumerTech": "Consumer & tech"
+      "consumerTech": "Consumer & tech",
+      "gold": "Gold"
     }
   },
   "WatchlistTable": {
@@ -369,7 +370,8 @@
     "sponsorSlotsOpen": "Sponsor slots open",
     "sponsorSlotsLeft": "{count, plural, one {# sponsor slot left} other {# sponsor slots left}}",
     "sponsorPitch": "Put your company in front of every OpenStock user.",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "monitor": "Monitor"
   },
   "TabBar": {
     "pages": {
@@ -597,5 +599,30 @@
     "retryHint": "“{list}” was created — press the button again to retry adding {symbol}.",
     "retryAdd": "Retry add",
     "createAndAdd": "Create and add"
+  },
+  "Monitor": {
+    "title": "Monitor",
+    "sub": "A wall of charts. Every indicator on every chart — no free-tier cap.",
+    "indicatorsTitle": "Indicators",
+    "indicatorsSub": "Picked here apply to every chart on the wall.",
+    "noIndicators": "No indicators yet.",
+    "addChartTitle": "Add a chart",
+    "addChartSub": "Any TradingView symbol, for example BINANCE:BTCUSDT.",
+    "add": "Add",
+    "addPublished": "Add published script",
+    "empty": "No charts yet. Add one above.",
+    "expand": "Expand",
+    "remove": "Remove",
+    "renameHint": "Click to rename",
+    "publishedPlaceholder": "PUB;user/script\nPUB;user/another_script",
+    "publishedHint": "Paste one or many published script ids, separated by newlines. Publish on TradingView first, then copy the id from the script's page.",
+    "wallStatus": "Wall status",
+    "saving": "Saving to your account...",
+    "saved": "Saved to your account",
+    "chartsLabel": "charts",
+    "studiesLabel": "indicators",
+    "badPublishedId": "That does not look like a published script id (PUB;user/script).",
+    "someIdsRejected": "Added the valid ids; {count} line(s) were not in PUB;user/script form.",
+    "saveFailed": "Could not save to your account; the wall is kept in this browser for now."
   }
 }

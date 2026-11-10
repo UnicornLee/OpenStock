@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { BookOpen, Code2, Heart, Info, LayoutDashboard, LifeBuoy, LogOut, Search, Star } from "lucide-react";
+import { BookOpen, Code2, Heart, Info, LayoutDashboard, LifeBuoy, LogOut, Monitor, Search, Star } from "lucide-react";
 import { openSearch } from "@/components/SearchCommand";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { signOut } from "@/lib/actions/auth.actions";
@@ -54,6 +54,9 @@ const Sidebar = ({ user, watchlist }: SidebarProps) => {
                 <Link href="/watchlist" className={cn('side-item', pathname === '/watchlist' && 'is-active')}>
                     <Star /> <span className="flex-1">{t('watchlist')}</span>
                     <span className="num text-xs text-faint">{watchlist.length}</span>
+                </Link>
+                <Link href="/monitor" className={cn('side-item', pathname === '/monitor' && 'is-active')}>
+                    <Monitor /> <span className="flex-1">{t('monitor')}</span>
                 </Link>
             </nav>
 

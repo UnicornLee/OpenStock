@@ -146,10 +146,12 @@ export const MARKETS: Market[] = [
             { symbol: 'BINANCE:ETHUSDT', label: 'Ethereum', finnhub: 'BINANCE:ETHUSDT' },
             { symbol: 'BINANCE:SOLUSDT', label: 'Solana', finnhub: 'BINANCE:SOLUSDT' },
             { symbol: 'BINANCE:BNBUSDT', label: 'BNB', finnhub: 'BINANCE:BNBUSDT' },
+            { symbol: 'BINANCE:XAUTUSDT', label: 'Tether Gold', finnhub: 'BINANCE:XAUTUSDT' },
         ],
         groups: [
             { title: 'Majors', symbols: [['BINANCE:BTCUSDT', 'Bitcoin'], ['BINANCE:ETHUSDT', 'Ethereum'], ['BINANCE:SOLUSDT', 'Solana'], ['BINANCE:BNBUSDT', 'BNB'], ['BINANCE:XRPUSDT', 'XRP']] },
             { title: 'More', symbols: [['BINANCE:ADAUSDT', 'Cardano'], ['BINANCE:DOGEUSDT', 'Dogecoin'], ['BINANCE:AVAXUSDT', 'Avalanche'], ['BINANCE:LINKUSDT', 'Chainlink'], ['BINANCE:DOTUSDT', 'Polkadot']] },
+            { title: 'Gold', symbols: [['BINANCE:XAUTUSDT', 'Tether Gold'], ['BINANCE:PAXGUSDT', 'PAX Gold']] },
         ],
         heatmap: 'crypto', news: 'crypto',
     },

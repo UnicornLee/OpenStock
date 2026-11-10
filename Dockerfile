@@ -10,7 +10,7 @@ COPY package*.json ./
 # COPY pnpm-lock.yaml ./
 
 # Install exactly what package-lock.json pins (choose npm or pnpm)
-RUN npm ci
+RUN npm install --no-audit --no-fund
 # If using pnpm, replace with:
 # RUN npm install -g pnpm && pnpm install
 

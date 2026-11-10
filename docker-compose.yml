@@ -16,21 +16,17 @@ services:
 
   mongodb:
     image: mongo:7
-    container_name: mongodb
+    container_name: openstock-mongodb
     restart: unless-stopped
     environment:
       MONGO_INITDB_ROOT_USERNAME: root
-      # Set MONGO_ROOT_PASSWORD in .env and use the same password in MONGODB_URI. Only read on the first start.
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-example}
-    # No published port: only the app reaches MongoDB, over the Compose network. To use mongosh or Compass from
-    # your machine, add  ports: ["127.0.0.1:27017:27017"]  (a bare "27017:27017" exposes it on every interface).
+    # No published port: only the app reaches MongoDB, over the Compose network.
     volumes:
-      - mongo-data:/data/db
+      # Keep the data on the external SSD instead of the system disk.
+      - ./dockerdata/mongodb:/data/db
     healthcheck:
       test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
       interval: 10s
       timeout: 5s
       retries: 5
-
-volumes:
-  mongo-data:

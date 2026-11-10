@@ -83,7 +83,8 @@
       "commodityFX": "عملات السلع",
       "banksInsurance": "البنوك والتأمين",
       "energyIndustry": "الطاقة والصناعة",
-      "consumerTech": "الاستهلاك والتقنية"
+      "consumerTech": "الاستهلاك والتقنية",
+      "gold": "الذهب"
     }
   },
   "WatchlistTable": {
@@ -369,7 +370,8 @@
     "sponsorSlotsOpen": "أماكن الرعاة متاحة",
     "sponsorSlotsLeft": "{count, plural, one {بقي مكان رعاية واحد} two {بقي مكانا رعاية} few {بقيت # أماكن رعاية} many {بقي # مكانًا للرعاية} other {بقي # مكان رعاية}}",
     "sponsorPitch": "اجعل شركتك أمام كل مستخدمي OpenStock.",
-    "signOut": "تسجيل الخروج"
+    "signOut": "تسجيل الخروج",
+    "monitor": "المراقبة"
   },
   "TabBar": {
     "pages": {
@@ -597,5 +599,30 @@
     "retryHint": "أُنشئت «{list}»، اضغط الزر مرة أخرى لإعادة محاولة إضافة {symbol}.",
     "retryAdd": "أعد المحاولة",
     "createAndAdd": "أنشئ وأضف"
+  },
+  "Monitor": {
+    "title": "المراقبة",
+    "sub": "جدار من الرسوم البيانية. كل مؤشر على كل رسم بياني، بدون حد.",
+    "indicatorsTitle": "المؤشرات",
+    "indicatorsSub": "المؤشرات المختارة تنطبق على كل الرسوم البيانية.",
+    "noIndicators": "لا توجد مؤشرات بعد.",
+    "addChartTitle": "أضف رسماً بيانياً",
+    "addChartSub": "أي رمز من TradingView، مثل BINANCE:BTCUSDT.",
+    "add": "إضافة",
+    "addPublished": "أضف سكربت منشور",
+    "empty": "لا توجد رسوم بيانية. أضف واحداً أعلاه.",
+    "expand": "توسيع",
+    "remove": "إزالة",
+    "renameHint": "انقر لإعادة التسمية",
+    "publishedPlaceholder": "PUB;user/script\nPUB;user/another_script",
+    "publishedHint": "الصق معرّف واحدًا أو أكثر للنشر، مفصولاً بأسطر جديدة. انشر على TradingView أولاً ثم انسخ المعرّف من صفحة السكربت.",
+    "wallStatus": "حالة الجدار",
+    "saving": "جارٍ الحفظ في حسابك...",
+    "saved": "تم الحفظ في حسابك",
+    "chartsLabel": "رسوم بيانية",
+    "studiesLabel": "مؤشرات",
+    "badPublishedId": "لا يبدو هذا معرّف سكربت منشور (PUB;user/script).",
+    "someIdsRejected": "تمت إضافة المعرّفات الصالحة؛ {count} سطر(وط) لم يكن بصيغة PUB;user/script.",
+    "saveFailed": "تعذّر الحفظ في حسابك؛ تم الاحتفاظ بالجدار في هذا المتصفح مؤقتًا."
   }
 }

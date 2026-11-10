@@ -83,7 +83,8 @@
       "commodityFX": "Waluty surowcowe",
       "banksInsurance": "Banki i ubezpieczenia",
       "energyIndustry": "Energetyka i przemysł",
-      "consumerTech": "Konsumpcja i technologie"
+      "consumerTech": "Konsumpcja i technologie",
+      "gold": "Złoto"
     }
   },
   "WatchlistTable": {
@@ -369,7 +370,8 @@
     "sponsorSlotsOpen": "Otwarte są miejsca dla sponsorów",
     "sponsorPitch": "Zaprezentuj swoją firmę każdemu użytkownikowi OpenStock.",
     "signOut": "Wyloguj się",
-    "sponsorSlotsLeft": "{count, plural, one {Zostało # miejsce dla sponsora} few {Zostały # miejsca dla sponsorów} many {Zostało # miejsc dla sponsorów} other {Zostało # miejsca dla sponsorów}}"
+    "sponsorSlotsLeft": "{count, plural, one {Zostało # miejsce dla sponsora} few {Zostały # miejsca dla sponsorów} many {Zostało # miejsc dla sponsorów} other {Zostało # miejsca dla sponsorów}}",
+    "monitor": "Monitoring"
   },
   "TabBar": {
     "pages": {
@@ -597,5 +599,30 @@
     "retryHint": "Lista „{list}” została utworzona — kliknij przycisk jeszcze raz, żeby ponowić dodanie {symbol}.",
     "retryAdd": "Ponów dodanie",
     "createAndAdd": "Utwórz i dodaj"
+  },
+  "Monitor": {
+    "title": "Monitoring",
+    "sub": "Ściana wykresów. Każdy wskaźnik na każdym wykresie — bez limitu.",
+    "indicatorsTitle": "Wskaźniki",
+    "indicatorsSub": "Wybrane wskaźniki działają na każdym wykresie.",
+    "noIndicators": "Brak wskaźników.",
+    "addChartTitle": "Dodaj wykres",
+    "addChartSub": "Dowolny symbol TradingView, np. BINANCE:BTCUSDT.",
+    "add": "Dodaj",
+    "addPublished": "Dodaj opublikowany skrypt",
+    "empty": "Brak wykresów. Dodaj powyżej.",
+    "expand": "Powiększ",
+    "remove": "Usuń",
+    "renameHint": "Kliknij, aby zmienić nazwę",
+    "publishedPlaceholder": "PUB;user/script\nPUB;user/another_script",
+    "publishedHint": "Wklej jeden lub wiele identyfikatorów opublikowanych skryptów, rozdzielonych nowymi liniami. Najpierw opublikuj na TradingView, potem skopiuj identyfikator ze strony skryptu.",
+    "wallStatus": "Status ściany",
+    "saving": "Zapisywanie na konto...",
+    "saved": "Zapisano na konto",
+    "chartsLabel": "wykresów",
+    "studiesLabel": "wskazników",
+    "badPublishedId": "To nie wygląda na identyfikator opublikowanego skryptu (PUB;user/script).",
+    "someIdsRejected": "Dodano poprawne identyfikatory; {count} wiersz(ie) nie miało postaci PUB;user/script.",
+    "saveFailed": "Nie udało się zapisać na konto; ściana pozostaje na razie w tej przeglądarce."
   }
 }
