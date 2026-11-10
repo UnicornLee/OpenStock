@@ -244,6 +244,12 @@ const MonitorWall = ({ initialCharts }: { initialCharts: Chart[] }) => {
         return () => { cancelled = true; };
     }, [initialCharts]);
 
+    // The mirror and the save both wait for this flag, so it has to be flipped once the first
+    // load has settled — otherwise the wall would push an empty layout over the stored one.
+    useEffect(() => {
+        setMounted(true);
+    }, []);
+
     // Mirror to localStorage so a reload never blanks the wall, then push to the account.
     useEffect(() => { if (mounted) localStorage.setItem(CHARTS_KEY, JSON.stringify(charts)); }, [charts, mounted]);
     useEffect(() => { if (mounted) localStorage.setItem(STUDIES_KEY, JSON.stringify(studies)); }, [studies, mounted]);
