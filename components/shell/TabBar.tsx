@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { LayoutDashboard, Menu, Plus, Star, X } from "lucide-react";
+import { Activity, LayoutDashboard, Menu, Plus, Star, X } from "lucide-react";
 import { openSearch } from "@/components/SearchCommand";
 import { cn } from "@/lib/utils";
 
@@ -13,10 +13,11 @@ const STORAGE_KEY = 'openstock-tabs';
 const MAX_TABS = 12;
 
 // Message keys under TabBar.pages
-const PAGE_LABELS: Record<string, 'overview' | 'watchlist' | 'profile'> = {
+const PAGE_LABELS: Record<string, 'overview' | 'watchlist' | 'profile' | 'monitor'> = {
     '/dashboard': 'overview',
     '/watchlist': 'watchlist',
     '/profile': 'profile',
+    '/monitor': 'monitor',
 };
 
 // Pages become browser-style tabs; stock pages are labelled by their symbol.
@@ -103,6 +104,7 @@ const TabBar = ({ onMenu }: { onMenu: () => void }) => {
                             <Link href={path} aria-current={active ? 'page' : undefined} className="flex min-w-0 flex-1 items-center gap-2 before:absolute before:inset-0 before:content-['']">
                                 {path === '/dashboard' && <LayoutDashboard />}
                                 {path === '/watchlist' && <Star />}
+                                {path === '/monitor' && <Activity />}
                                 <span className={cn('tab-label', isStock && 'mono text-[13px]')}>{tabLabel(path)}</span>
                             </Link>
                             {!pinned && (

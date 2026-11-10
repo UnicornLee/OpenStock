@@ -377,7 +377,8 @@
     "pages": {
       "overview": "نظرة عامة",
       "watchlist": "قائمة المتابعة",
-      "profile": "الملف الشخصي"
+      "profile": "الملف الشخصي",
+      "monitor": "مراقبة"
     },
     "openMenu": "افتح القائمة",
     "closeTab": "أغلق {label}",

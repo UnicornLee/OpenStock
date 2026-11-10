@@ -377,7 +377,8 @@
     "pages": {
       "overview": "Przegląd",
       "watchlist": "Obserwowane",
-      "profile": "Profil"
+      "profile": "Profil",
+      "monitor": "Monitor"
     },
     "openMenu": "Otwórz menu",
     "closeTab": "Zamknij {label}",
