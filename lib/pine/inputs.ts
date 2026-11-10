@@ -7,6 +7,10 @@
  * defaults are what the chart draws out of the box; this store holds the user's overrides so
  * a wall can be tuned without touching the code, and mirrors them into localStorage so a
  * reload keeps the same setup.
+ *
+ * Settings are **per chart**: two charts can carry the same indicator with different values
+ * (a 14-period stochastic on one symbol, a 21-period one on another), so the store is keyed by
+ * chart symbol first and indicator id second.
  */
 
 import { useCallback, useEffect, useState } from 'react';
@@ -14,7 +18,8 @@ import { findIndicator, type PineIndicator } from './indicators';
 
 const STORAGE_KEY = 'openstock:monitor-pine-inputs';
 
-export type PineInputValues = Record<string, Record<string, number | boolean | string>>;
+/** chart symbol -> indicator id -> input key -> value */
+export type PineInputValues = Record<string, Record<string, Record<string, number | boolean | string>>>;
 
 const readAll = (): PineInputValues => {
     if (typeof window === 'undefined') return {};
@@ -75,8 +80,8 @@ export const formatLegend = (
 /**
  * A small React store for the settings of every indicator on the wall.
  *
- * It keeps one copy for the whole page, so a value changed in the settings dialog is seen by
- * every chart that draws that indicator.
+ * The settings belong to a chart, not to the wall: each chart keeps its own copy, so tuning the
+ * stochastic on one symbol leaves the others alone.
  */
 export function usePineInputs() {
     const [values, setValues] = useState<PineInputValues>({});
@@ -87,40 +92,61 @@ export function usePineInputs() {
         setLoaded(true);
     }, []);
 
-    const update = useCallback((indicatorId: string, key: string, value: number | boolean | string) => {
+    const update = useCallback(
+        (symbol: string, indicatorId: string, key: string, value: number | boolean | string) => {
+            setValues((current) => {
+                const byIndicator = current[symbol] ?? {};
+                const next: PineInputValues = {
+                    ...current,
+                    [symbol]: {
+                        ...byIndicator,
+                        [indicatorId]: { ...(byIndicator[indicatorId] ?? {}), [key]: value },
+                    },
+                };
+                writeAll(next);
+                return next;
+            });
+        },
+        [],
+    );
+
+    const reset = useCallback((symbol: string, indicatorId: string) => {
         setValues((current) => {
-            const next: PineInputValues = {
-                ...current,
-                [indicatorId]: { ...(current[indicatorId] ?? {}), [key]: value },
-            };
+            const byIndicator = current[symbol] ?? {};
+            const nextIndicator = { ...byIndicator };
+            delete nextIndicator[indicatorId];
+            const next: PineInputValues = { ...current, [symbol]: nextIndicator };
             writeAll(next);
             return next;
         });
     }, []);
 
-    const reset = useCallback((indicatorId: string) => {
+    const resetAll = useCallback((symbol?: string) => {
         setValues((current) => {
             const next = { ...current };
-            delete next[indicatorId];
+            if (symbol) delete next[symbol];
+            else for (const key of Object.keys(next)) delete next[key];
             writeAll(next);
             return next;
         });
     }, []);
 
-    const resetAll = useCallback(() => {
-        setValues({});
-        writeAll({});
-    }, []);
-
-    /** The values one indicator should be computed with. */
+    /** The values one indicator on one chart should be computed with. */
     const forIndicator = useCallback(
-        (indicatorId: string): Record<string, number | boolean | string> => {
+        (symbol: string, indicatorId: string): Record<string, number | boolean | string> => {
             const indicator = findIndicator(indicatorId);
             if (!indicator) return {};
-            return resolveInputs(indicator, values[indicatorId]);
+            return resolveInputs(indicator, values[symbol]?.[indicatorId]);
         },
         [values],
     );
 
-    return { values, loaded, update, reset, resetAll, forIndicator };
+    /** Every chart's settings, ready to hand to a chart component. */
+    const forSymbol = useCallback(
+        (symbol: string): Record<string, Record<string, number | boolean | string>> =>
+            values[symbol] ?? {},
+        [values],
+    );
+
+    return { values, loaded, update, reset, resetAll, forIndicator, forSymbol };
 }

@@ -10,6 +10,10 @@ import { requireUserId } from '@/lib/better-auth/auth';
 export interface MonitorChartInput {
     symbol: string;
     name: string;
+    /** TradingView study ids enabled on this chart. */
+    studies?: string[];
+    /** Ids of the self-hosted Pine indicators enabled on this chart. */
+    pineStudies?: string[];
 }
 
 export interface MonitorPublishedInput {
@@ -31,6 +35,9 @@ const MAX_PINE_STUDIES = 40;
 // The self-hosted chart only knows the indicators shipped in `lib/pine/indicators.ts`.
 const PINE_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,39}$/;
 
+const cleanList = (values: unknown[], max: number): string[] =>
+    [...new Set(values.map((v) => String(v ?? '').trim()).filter(Boolean))].slice(0, max);
+
 export async function getMonitorConfig() {
     const userId = await requireUserId();
     try {
@@ -38,7 +45,12 @@ export async function getMonitorConfig() {
         const doc = await Model.findOne({ userId }).lean();
         if (!doc) return { charts: [], studies: [], published: [], pineStudies: [] };
         return {
-            charts: (doc.charts ?? []).map((c) => ({ symbol: c.symbol, name: c.name })),
+            charts: (doc.charts ?? []).map((c) => ({
+                symbol: c.symbol,
+                name: c.name,
+                studies: c.studies ?? [],
+                pineStudies: c.pineStudies ?? [],
+            })),
             studies: doc.studies ?? [],
             published: (doc.published ?? []).map((p) => ({ id: p.id, label: p.label })),
             pineStudies: doc.pineStudies ?? [],
@@ -61,11 +73,15 @@ export async function saveMonitorConfig(input: {
             .map((c) => ({
                 symbol: String(c?.symbol ?? '').trim().toUpperCase(),
                 name: String(c?.name ?? '').trim().slice(0, 60),
+                studies: cleanList(c?.studies ?? [], MAX_STUDIES),
+                pineStudies: cleanList(c?.pineStudies ?? [], MAX_PINE_STUDIES).filter((s) =>
+                    PINE_ID_PATTERN.test(s),
+                ),
             }))
             .filter((c) => SYMBOL_PATTERN.test(c.symbol))
             .slice(0, MAX_CHARTS);
 
-        const studies = [...new Set((input.studies ?? []).map((s) => String(s ?? '').trim()).filter(Boolean))].slice(0, MAX_STUDIES);
+        const studies = cleanList(input.studies ?? [], MAX_STUDIES);
 
         const published = (input.published ?? [])
             .map((p) => ({

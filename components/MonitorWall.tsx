@@ -18,6 +18,10 @@ import { getMonitorConfig, saveMonitorConfig } from '@/lib/actions/monitor.actio
 //   - 'tv'   the TradingView embed. It only knows TradingView's own study ids.
 //   - 'pine' a self-hosted chart. It computes the user's own Pine scripts locally from
 //            Gate.io candles, so scripts that cannot be published on TradingView still work.
+//
+// Every chart carries **its own** indicator set and its own indicator settings: adding a
+// stochastic to one symbol does not put it on the others, and tuning the stochastic on one
+// symbol leaves the other charts' stochastic untouched.
 
 const scriptUrl = `https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js`;
 
@@ -50,7 +54,14 @@ const DEFAULT_CHARTS = [
     { symbol: 'BINANCE:SOLUSDT', name: 'Solana' },
 ];
 
-type Chart = { symbol: string; name: string };
+type Chart = {
+    symbol: string;
+    name: string;
+    /** TradingView study ids on this chart. */
+    studies: string[];
+    /** Ids of the self-hosted Pine indicators on this chart. */
+    pineStudies: string[];
+};
 type Published = { id: string; label: string };
 type Engine = 'tv' | 'pine';
 
@@ -75,20 +86,40 @@ const readJson = <T,>(key: string, fallback: T): T => {
     }
 };
 
+/** Old walls stored charts as `{symbol, name}` only; the per-chart lists are new. */
+const normalizeCharts = (raw: unknown, fallback: Chart[]): Chart[] => {
+    const list = Array.isArray(raw) ? (raw as Partial<Chart>[]) : [];
+    const charts = list
+        .filter((c): c is Partial<Chart> & { symbol: string } => Boolean(c) && typeof c.symbol === 'string')
+        .map((c) => ({
+            symbol: c.symbol,
+            name: typeof c.name === 'string' ? c.name : c.symbol,
+            studies: Array.isArray(c.studies) ? c.studies.filter((s): s is string => typeof s === 'string') : [],
+            pineStudies: Array.isArray(c.pineStudies)
+                ? c.pineStudies.filter((s): s is string => typeof s === 'string')
+                : [],
+        }));
+    return charts.length ? charts : fallback;
+};
+
 const ChartCard = ({
     chart,
-    studies,
-    pineIds,
-    inputValues,
+    published,
     onRemove,
     onRename,
+    onTogglePine,
+    onToggleStudy,
+    onOpenSettings,
+    pineInputs,
 }: {
     chart: Chart;
-    studies: string[];
-    pineIds: string[];
-    inputValues: Record<string, Record<string, number | boolean | string>>;
+    published: Published[];
     onRemove: () => void;
     onRename: (name: string) => void;
+    onTogglePine: (id: string) => void;
+    onToggleStudy: (id: string) => void;
+    onOpenSettings: (id: string) => void;
+    pineInputs: ReturnType<typeof usePineInputs>;
 }) => {
     const t = useTranslations('Monitor');
     const [expanded, setExpanded] = useState(false);
@@ -98,8 +129,8 @@ const ChartCard = ({
     const [interval, setInterval] = useState<Interval>('5m');
 
     const config = useMemo(
-        () => ({ ...CANDLE_CHART_WIDGET_CONFIG(chart.symbol), studies }),
-        [chart.symbol, studies],
+        () => ({ ...CANDLE_CHART_WIDGET_CONFIG(chart.symbol), studies: chart.studies }),
+        [chart.symbol, chart.studies],
     );
 
     // The engine choice and the timeframe are wall-wide preferences, so they are kept in
@@ -120,6 +151,20 @@ const ChartCard = ({
         setInterval(next);
         localStorage.setItem(INTERVAL_KEY, next);
     };
+
+    // The indicators this chart actually carries, split by engine.
+    const pineChips = chart.pineStudies
+        .map((id) => findIndicator(id))
+        .filter((i): i is NonNullable<typeof i> => Boolean(i))
+        .map((indicator) => ({
+            id: indicator.id,
+            text: formatLegend(indicator, resolveInputs(indicator, pineInputs.values[chart.symbol]?.[indicator.id])),
+            color: indicator.plots[0]?.color ?? '#a2a9b1',
+        }));
+    const studyChips = chart.studies.map((id) => ({
+        id,
+        text: published.find((p) => p.id === id)?.label ?? id.replace(/^STD;/, ''),
+    }));
 
     return (
         <section className="hatch">
@@ -151,7 +196,7 @@ const ChartCard = ({
                 </div>
             </div>
             <div className={cn('card', expanded && 'fixed inset-3 z-50 shadow-[0_0_0_4px_var(--frame),0_24px_60px_oklch(0_0_0/0.6)]')}>
-                <div className="flex items-center gap-2 border-b border-[var(--frame)] px-2 py-1.5">
+                <div className="flex flex-wrap items-center gap-2 border-b border-[var(--frame)] px-2 py-1.5">
                     <div className="flex items-center gap-1">
                         {(['tv', 'pine'] as const).map((m) => (
                             <button
@@ -191,6 +236,58 @@ const ChartCard = ({
                         <span className="text-[12px] text-faint">{t('engineTvNote')}</span>
                     )}
                 </div>
+
+                {/* This chart's own indicators. Every chip is removable, and a Pine chip can be
+                    tuned with its own settings dialog. */}
+                {pineChips.length > 0 || studyChips.length > 0 ? (
+                    <div className="flex flex-wrap items-center gap-1.5 border-b border-[var(--frame)] px-2 py-1.5">
+                        {pineChips.map((chip) => (
+                            <span
+                                key={chip.id}
+                                className="flex items-center gap-1 rounded-[10px] bg-brand-soft px-2 py-0.5 text-[12px] text-brand-ink"
+                            >
+                                <span className="inline-block h-[7px] w-[7px] shrink-0 rounded-[2px]" style={{ backgroundColor: chip.color }} />
+                                <span className="mono">{chip.text}</span>
+                                <button
+                                    type="button"
+                                    onClick={() => onOpenSettings(chip.id)}
+                                    title={t('indicatorSettings')}
+                                    aria-label={`${t('indicatorSettings')}: ${chip.id}`}
+                                    className="rounded-[6px] p-0.5 opacity-70 transition-opacity hover:opacity-100"
+                                >
+                                    <Settings2 className="h-3 w-3" />
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => onTogglePine(chip.id)}
+                                    title={t('removeIndicator')}
+                                    aria-label={`${t('removeIndicator')}: ${chip.id}`}
+                                    className="rounded-[6px] p-0.5 opacity-70 transition-opacity hover:opacity-100"
+                                >
+                                    <X className="h-3 w-3" />
+                                </button>
+                            </span>
+                        ))}
+                        {studyChips.map((chip) => (
+                            <span
+                                key={chip.id}
+                                className="flex items-center gap-1 rounded-[10px] bg-hover/70 px-2 py-0.5 text-[12px] text-muted-foreground"
+                            >
+                                <span className="mono">{chip.text}</span>
+                                <button
+                                    type="button"
+                                    onClick={() => onToggleStudy(chip.id)}
+                                    title={t('removeIndicator')}
+                                    aria-label={`${t('removeIndicator')}: ${chip.id}`}
+                                    className="rounded-[6px] p-0.5 opacity-70 transition-opacity hover:opacity-100"
+                                >
+                                    <X className="h-3 w-3" />
+                                </button>
+                            </span>
+                        ))}
+                    </div>
+                ) : null}
+
                 <div className={expanded ? 'h-full' : undefined}>
                     {mode === 'tv' ? (
                         <TradingViewWidget scriptUrl={scriptUrl} config={config} height={expanded ? 600 : 420} />
@@ -198,8 +295,8 @@ const ChartCard = ({
                         <PineChart
                             symbol={chart.symbol}
                             interval={interval}
-                            indicatorIds={pineIds}
-                            inputValues={inputValues}
+                            indicatorIds={chart.pineStudies}
+                            inputValues={pineInputs.forSymbol(chart.symbol)}
                             height={expanded ? 600 : 420}
                         />
                     )}
@@ -210,18 +307,20 @@ const ChartCard = ({
 };
 
 /**
- * The settings dialog of one Pine indicator.
+ * The settings dialog of one Pine indicator on one chart.
  *
  * It lists the script's `input.*` values, so a script can be tuned the same way TradingView's
  * own settings dialog allows it.
  */
 const PineSettingsDialog = ({
+    symbol,
     indicatorId,
     values,
     onChange,
     onReset,
     onClose,
 }: {
+    symbol: string;
     indicatorId: string;
     values: Record<string, number | boolean | string>;
     onChange: (key: string, value: number | boolean | string) => void;
@@ -324,17 +423,17 @@ const PineSettingsDialog = ({
 const MonitorWall = ({ initialCharts }: { initialCharts: Chart[] }) => {
     const t = useTranslations('Monitor');
     const [charts, setCharts] = useState<Chart[]>(initialCharts);
-    const [studies, setStudies] = useState<string[]>([]);
     const [published, setPublished] = useState<Published[]>([]);
-    const [pineStudies, setPineStudies] = useState<string[]>([]);
     const [symbol, setSymbol] = useState('');
     const [mounted, setMounted] = useState(false);
     const [saving, setSaving] = useState(false);
     const [notice, setNotice] = useState('');
-    const [settingsFor, setSettingsFor] = useState<string | null>(null);
+    /** The chart the catalog applies to. */
+    const [target, setTarget] = useState<string>('');
+    const [settingsFor, setSettingsFor] = useState<{ symbol: string; id: string } | null>(null);
     const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    // The settings of every Pine indicator on the wall; shared by all cards.
+    // The settings of every Pine indicator, per chart.
     const pineInputs = usePineInputs();
 
     // Load the wall from the account first; fall back to this browser's copy if the user is not
@@ -345,20 +444,16 @@ const MonitorWall = ({ initialCharts }: { initialCharts: Chart[] }) => {
             try {
                 const config = await getMonitorConfig();
                 if (cancelled) return;
-                if (config.charts.length) setCharts(config.charts);
-                setStudies(config.studies);
+                if (config.charts.length) setCharts(normalizeCharts(config.charts, initialCharts));
                 setPublished(config.published);
-                setPineStudies(config.pineStudies ?? []);
                 if (config.charts.length === 0) {
                     const local = readJson<Chart[]>(CHARTS_KEY, []);
-                    if (local.length) setCharts(local);
+                    if (local.length) setCharts(normalizeCharts(local, initialCharts));
                 }
             } catch {
                 if (cancelled) return;
-                setCharts(readJson<Chart[]>(CHARTS_KEY, initialCharts));
-                setStudies(readJson<string[]>(STUDIES_KEY, []));
+                setCharts(normalizeCharts(readJson<Chart[]>(CHARTS_KEY, []), initialCharts));
                 setPublished(readJson<Published[]>(PUBLISHED_KEY, []));
-                setPineStudies(readJson<string[]>(PINE_KEY, []));
             }
         })();
         return () => { cancelled = true; };
@@ -370,38 +465,75 @@ const MonitorWall = ({ initialCharts }: { initialCharts: Chart[] }) => {
         setMounted(true);
     }, []);
 
+    // The first chart is the default target of the indicator catalog.
+    useEffect(() => {
+        if (!target && charts.length) setTarget(charts[0].symbol);
+    }, [charts, target]);
+
     // Mirror to localStorage so a reload never blanks the wall, then push to the account.
     useEffect(() => { if (mounted) localStorage.setItem(CHARTS_KEY, JSON.stringify(charts)); }, [charts, mounted]);
-    useEffect(() => { if (mounted) localStorage.setItem(STUDIES_KEY, JSON.stringify(studies)); }, [studies, mounted]);
     useEffect(() => { if (mounted) localStorage.setItem(PUBLISHED_KEY, JSON.stringify(published)); }, [published, mounted]);
-    useEffect(() => { if (mounted) localStorage.setItem(PINE_KEY, JSON.stringify(pineStudies)); }, [pineStudies, mounted]);
 
     useEffect(() => {
         if (!mounted) return;
         if (saveTimer.current) clearTimeout(saveTimer.current);
         saveTimer.current = setTimeout(() => {
             setSaving(true);
-            void saveMonitorConfig({ charts, studies, published, pineStudies })
+            void saveMonitorConfig({
+                charts: charts.map((c) => ({ symbol: c.symbol, name: c.name, studies: c.studies, pineStudies: c.pineStudies })),
+                published,
+            })
                 .catch(() => setNotice(t('saveFailed')))
                 .finally(() => setSaving(false));
         }, 600);
         return () => { if (saveTimer.current) clearTimeout(saveTimer.current); };
-    }, [charts, studies, published, pineStudies, mounted, t]);
+    }, [charts, published, mounted, t]);
 
-    const toggleStudy = useCallback((id: string) => {
-        setStudies((current) => (current.includes(id) ? current.filter((s) => s !== id) : [...current, id]));
+    /** Apply a change to one chart, identified by its symbol. */
+    const patchChart = useCallback((symbol: string, patch: Partial<Chart>) => {
+        setCharts((current) =>
+            current.map((c) => (c.symbol === symbol ? { ...c, ...patch } : c)),
+        );
     }, []);
 
-    const togglePine = useCallback((id: string) => {
-        setPineStudies((current) => (current.includes(id) ? current.filter((s) => s !== id) : [...current, id]));
-    }, []);
+    const togglePine = useCallback(
+        (chartSymbol: string, id: string) => {
+            setCharts((current) =>
+                current.map((c) => {
+                    if (c.symbol !== chartSymbol) return c;
+                    const pineStudies = c.pineStudies.includes(id)
+                        ? c.pineStudies.filter((s) => s !== id)
+                        : [...c.pineStudies, id];
+                    return { ...c, pineStudies };
+                }),
+            );
+        },
+        [],
+    );
+
+    const toggleStudy = useCallback(
+        (chartSymbol: string, id: string) => {
+            setCharts((current) =>
+                current.map((c) => {
+                    if (c.symbol !== chartSymbol) return c;
+                    const studies = c.studies.includes(id)
+                        ? c.studies.filter((s) => s !== id)
+                        : [...c.studies, id];
+                    return { ...c, studies };
+                }),
+            );
+        },
+        [],
+    );
 
     const addChart = () => {
         const clean = symbol.trim().toUpperCase();
         if (!SYMBOL_PATTERN.test(clean)) return;
 
         setCharts((current) =>
-            current.some((c) => c.symbol === clean) ? current : [...current, { symbol: clean, name: clean }],
+            current.some((c) => c.symbol === clean)
+                ? current
+                : [...current, { symbol: clean, name: clean, studies: [], pineStudies: [] }],
         );
         setSymbol('');
     };
@@ -425,16 +557,12 @@ const MonitorWall = ({ initialCharts }: { initialCharts: Chart[] }) => {
             }
             return merged;
         });
-        setStudies((current) => {
-            const merged = [...current];
-            for (const id of valid) if (!merged.includes(id)) merged.push(id);
-            return merged;
-        });
         setSymbol('');
         setNotice(rejected ? t('someIdsRejected', { count: rejected }) : '');
     };
 
     const allStudies = [...BUILT_IN.map((i) => ({ id: i.id, label: i.label })), ...published];
+    const targetChart = charts.find((c) => c.symbol === target) ?? null;
 
     return (
         <div className="flex flex-col gap-3">
@@ -446,39 +574,61 @@ const MonitorWall = ({ initialCharts }: { initialCharts: Chart[] }) => {
                     </div>
                 </div>
                 <div className="card flex flex-col gap-3 p-3">
+                    {/* Which chart the catalog applies to. Every chart carries its own set. */}
+                    <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-[12px] text-faint">{t('applyTo')}</span>
+                        <div className="flex flex-wrap items-center gap-1">
+                            {charts.map((c) => (
+                                <button
+                                    key={c.symbol}
+                                    type="button"
+                                    onClick={() => setTarget(c.symbol)}
+                                    aria-pressed={target === c.symbol}
+                                    className={cn(
+                                        'rounded-[8px] px-2 py-1 text-[12px] transition-colors',
+                                        target === c.symbol ? 'bg-brand-soft text-brand-ink' : 'text-muted-foreground hover:bg-hover',
+                                    )}
+                                >
+                                    {c.name}
+                                </button>
+                            ))}
+                        </div>
+                        {charts.length > 1 && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const ids = targetChart?.pineStudies ?? [];
+                                    setCharts((current) => current.map((c) => ({ ...c, pineStudies: [...ids] })));
+                                }}
+                                className="btn btn-ghost h-8 px-3 text-[12px]"
+                                title={t('applyToAllHint')}
+                            >
+                                {t('applyToAll')}
+                            </button>
+                        )}
+                    </div>
+
                     <div>
                         <p className="mb-2 text-[12px] text-faint">{t('enginePineHint')}</p>
                         <div className="flex flex-wrap gap-2">
                             {PINE_INDICATORS.map((i) => {
-                                const active = pineStudies.includes(i.id);
-                                const effective = resolveInputs(i, pineInputs.values[i.id]);
+                                const active = targetChart?.pineStudies.includes(i.id) ?? false;
                                 return (
-                                    <span
+                                    <button
                                         key={i.id}
+                                        type="button"
+                                        onClick={() => target && togglePine(target, i.id)}
+                                        aria-pressed={active}
+                                        title={`${i.title} — ${i.description}`}
                                         className={cn(
-                                            'flex items-center gap-1 rounded-[10px] pl-1 pr-0.5 transition-colors',
-                                            active ? 'bg-brand-soft text-brand-ink' : 'bg-hover/60 text-muted-foreground hover:bg-hover',
+                                            'rounded-[10px] px-3 py-1.5 text-[13px] transition-colors',
+                                            active
+                                                ? 'bg-brand-soft text-brand-ink'
+                                                : 'bg-hover/60 text-muted-foreground hover:bg-hover',
                                         )}
                                     >
-                                        <button
-                                            type="button"
-                                            onClick={() => togglePine(i.id)}
-                                            aria-pressed={active}
-                                            title={`${i.title} — ${i.description}`}
-                                            className="px-2 py-1.5 text-[13px]"
-                                        >
-                                            {active ? formatLegend(i, effective) : i.shorttitle}
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setSettingsFor(i.id)}
-                                            title={t('indicatorSettings')}
-                                            aria-label={`${t('indicatorSettings')}: ${i.title}`}
-                                            className="rounded-[6px] p-1 opacity-70 transition-opacity hover:opacity-100"
-                                        >
-                                            <Settings2 className="h-3.5 w-3.5" />
-                                        </button>
-                                    </span>
+                                        {i.shorttitle}
+                                    </button>
                                 );
                             })}
                             {PINE_INDICATORS.length === 0 && <span className="text-[13px] text-faint">{t('noIndicators')}</span>}
@@ -487,23 +637,26 @@ const MonitorWall = ({ initialCharts }: { initialCharts: Chart[] }) => {
                     <div>
                         <p className="mb-2 text-[12px] text-faint">{t('engineTvHint')}</p>
                         <div className="flex flex-wrap gap-2">
-                            {allStudies.map((s) => (
-                                <button
-                                    key={s.id}
-                                    type="button"
-                                    onClick={() => toggleStudy(s.id)}
-                                    aria-pressed={studies.includes(s.id)}
-                                    title={s.id}
-                                    className={cn(
-                                        'rounded-[10px] px-3 py-1.5 text-[13px] transition-colors',
-                                        studies.includes(s.id)
-                                            ? 'bg-brand-soft text-brand-ink'
-                                            : 'bg-hover/60 text-muted-foreground hover:bg-hover',
-                                    )}
-                                >
-                                    {s.label}
-                                </button>
-                            ))}
+                            {allStudies.map((s) => {
+                                const active = targetChart?.studies.includes(s.id) ?? false;
+                                return (
+                                    <button
+                                        key={s.id}
+                                        type="button"
+                                        onClick={() => target && toggleStudy(target, s.id)}
+                                        aria-pressed={active}
+                                        title={s.id}
+                                        className={cn(
+                                            'rounded-[10px] px-3 py-1.5 text-[13px] transition-colors',
+                                            active
+                                                ? 'bg-brand-soft text-brand-ink'
+                                                : 'bg-hover/60 text-muted-foreground hover:bg-hover',
+                                        )}
+                                    >
+                                        {s.label}
+                                    </button>
+                                );
+                            })}
                             {allStudies.length === 0 && <span className="text-[13px] text-faint">{t('noIndicators')}</span>}
                         </div>
                     </div>
@@ -550,7 +703,7 @@ const MonitorWall = ({ initialCharts }: { initialCharts: Chart[] }) => {
                 </div>
                 <div className="card flex flex-wrap items-center gap-3 p-3 text-[13px] text-muted-foreground">
                     <span>{saving ? t('saving') : t('saved')}</span>
-                    <span className="mono text-faint">{charts.length} {t('chartsLabel')} · {studies.length} {t('studiesLabel')} · {pineStudies.length} {t('pineLabel')}</span>
+                    <span className="mono text-faint">{charts.length} {t('chartsLabel')} · {t('perChartIndicators')}</span>
                     {notice && <span className="text-amber-600 dark:text-amber-400">{notice}</span>}
                 </div>
             </div>
@@ -560,11 +713,13 @@ const MonitorWall = ({ initialCharts }: { initialCharts: Chart[] }) => {
                     <ChartCard
                         key={chart.symbol}
                         chart={chart}
-                        studies={studies}
-                        pineIds={pineStudies}
-                        inputValues={pineInputs.values}
+                        published={published}
+                        pineInputs={pineInputs}
                         onRemove={() => setCharts((current) => current.filter((c) => c.symbol !== chart.symbol))}
-                        onRename={(name) => setCharts((current) => current.map((c) => (c.symbol === chart.symbol ? { ...c, name } : c)))}
+                        onRename={(name) => patchChart(chart.symbol, { name })}
+                        onTogglePine={(id) => togglePine(chart.symbol, id)}
+                        onToggleStudy={(id) => toggleStudy(chart.symbol, id)}
+                        onOpenSettings={(id) => setSettingsFor({ symbol: chart.symbol, id })}
                     />
                 ))}
             </div>
@@ -575,10 +730,11 @@ const MonitorWall = ({ initialCharts }: { initialCharts: Chart[] }) => {
 
             {settingsFor && (
                 <PineSettingsDialog
-                    indicatorId={settingsFor}
-                    values={pineInputs.forIndicator(settingsFor)}
-                    onChange={(key, value) => pineInputs.update(settingsFor, key, value)}
-                    onReset={() => pineInputs.reset(settingsFor)}
+                    symbol={settingsFor.symbol}
+                    indicatorId={settingsFor.id}
+                    values={pineInputs.forIndicator(settingsFor.symbol, settingsFor.id)}
+                    onChange={(key, value) => pineInputs.update(settingsFor.symbol, settingsFor.id, key, value)}
+                    onReset={() => pineInputs.reset(settingsFor.symbol, settingsFor.id)}
                     onClose={() => setSettingsFor(null)}
                 />
             )}

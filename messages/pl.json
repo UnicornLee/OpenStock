@@ -605,7 +605,7 @@
     "title": "Monitoring",
     "sub": "Ściana wykresów. Każdy wskaźnik na każdym wykresie — bez limitu.",
     "indicatorsTitle": "Wskaźniki",
-    "indicatorsSub": "Wybrane wskaźniki działają na każdym wykresie.",
+    "indicatorsSub": "Wybierz wykres do edycji, a następnie kliknij wskaźnik, aby dodać lub usunąć go tylko na tym wykresie.",
     "enginePineHint": "Pine (lokalnie): twoje własne skrypty, liczone lokalnie na świecach Gate.io.",
     "engineTvHint": "TradingView: wbudowane wskaźniki i skrypty opublikowane na TradingView.",
     "engineTvNote": "Osadzenie TradingView nie pokazuje Twoich nieopublikowanych skryptów.",
@@ -632,6 +632,11 @@
     "indicatorSettings": "Ustawienia wskaźnika",
     "noSettings": "Ten skrypt nie ma ustawień.",
     "resetSettings": "Przywróć domyślne",
-    "close": "Zamknij"
+    "close": "Zamknij",
+    "applyTo": "Edytujesz:",
+    "applyToAll": "Kopiuj na wszystkie wykresy",
+    "applyToAllHint": "Kopiuje wskaźniki Pine z tego wykresu na pozostałe wykresy na ścianie.",
+    "perChartIndicators": "każdy wykres ma własne wskaźniki",
+    "removeIndicator": "Usuń wskaźnik"
   }
 }

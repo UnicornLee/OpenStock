@@ -4,6 +4,10 @@ import { modelOn, type DbHandle } from '@/database/request-connection';
 export interface MonitorChart {
     symbol: string;
     name: string;
+    /** TradingView study ids enabled on this chart. */
+    studies?: string[];
+    /** Ids of the self-hosted Pine indicators enabled on this chart. */
+    pineStudies?: string[];
 }
 
 export interface MonitorPublished {
@@ -14,9 +18,10 @@ export interface MonitorPublished {
 export interface MonitorConfig extends Document {
     userId: string;
     charts: MonitorChart[];
+    /** Wall-wide TradingView studies, applied to every chart that does not override them. */
     studies: string[];
     published: MonitorPublished[];
-    /** Ids of the self-hosted Pine indicators that are enabled on the wall. */
+    /** Wall-wide Pine indicators, applied to every chart that does not override them. */
     pineStudies: string[];
     updatedAt: Date;
 }
@@ -32,6 +37,8 @@ const MonitorConfigSchema = new Schema<MonitorConfig>(
                 {
                     symbol: { type: String, required: true, uppercase: true, trim: true },
                     name: { type: String, required: true, trim: true },
+                    studies: { type: [String], default: [] },
+                    pineStudies: { type: [String], default: [] },
                 },
             ],
             default: [],

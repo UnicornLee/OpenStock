@@ -2,11 +2,18 @@ import { getTranslations } from 'next-intl/server';
 import MonitorWall from '@/components/MonitorWall';
 import { getMonitorConfig } from '@/lib/actions/monitor.actions';
 
-const DEFAULT_CHARTS = [
-    { symbol: 'BINANCE:BTCUSDT', name: 'Bitcoin' },
-    { symbol: 'BINANCE:ETHUSDT', name: 'Ethereum' },
-    { symbol: 'BINANCE:XAUTUSDT', name: 'Tether Gold' },
-    { symbol: 'BINANCE:SOLUSDT', name: 'Solana' },
+type Chart = {
+    symbol: string;
+    name: string;
+    studies: string[];
+    pineStudies: string[];
+};
+
+const DEFAULT_CHARTS: Chart[] = [
+    { symbol: 'BINANCE:BTCUSDT', name: 'Bitcoin', studies: [], pineStudies: [] },
+    { symbol: 'BINANCE:ETHUSDT', name: 'Ethereum', studies: [], pineStudies: [] },
+    { symbol: 'BINANCE:XAUTUSDT', name: 'Tether Gold', studies: [], pineStudies: [] },
+    { symbol: 'BINANCE:SOLUSDT', name: 'Solana', studies: [], pineStudies: [] },
 ];
 
 export default async function MonitorPage() {
@@ -17,7 +24,14 @@ export default async function MonitorPage() {
     let charts = DEFAULT_CHARTS;
     try {
         const config = await getMonitorConfig();
-        if (config.charts.length) charts = config.charts;
+        if (config.charts.length) {
+            charts = config.charts.map((c) => ({
+                symbol: c.symbol,
+                name: c.name,
+                studies: c.studies ?? [],
+                pineStudies: c.pineStudies ?? [],
+            }));
+        }
     } catch {
         charts = DEFAULT_CHARTS;
     }

@@ -605,7 +605,7 @@
     "title": "Monitor",
     "sub": "A wall of charts. Every indicator on every chart — no free-tier cap.",
     "indicatorsTitle": "Indicators",
-    "indicatorsSub": "Picked here apply to every chart on the wall.",
+    "indicatorsSub": "Pick the chart to edit, then click an indicator to add or remove it on that chart only.",
     "enginePineHint": "Pine (self-hosted): your own scripts, computed locally from Gate.io candles.",
     "engineTvHint": "TradingView: built-in studies and scripts you published on TradingView.",
     "engineTvNote": "The TradingView embed cannot show your own unpublished scripts.",
@@ -632,6 +632,11 @@
     "indicatorSettings": "Indicator settings",
     "noSettings": "This script has no settings.",
     "resetSettings": "Reset to defaults",
-    "close": "Close"
+    "close": "Close",
+    "applyTo": "Editing:",
+    "applyToAll": "Copy to all charts",
+    "applyToAllHint": "Copy this chart's Pine indicators to every other chart on the wall.",
+    "perChartIndicators": "every chart has its own indicators",
+    "removeIndicator": "Remove indicator"
   }
 }
