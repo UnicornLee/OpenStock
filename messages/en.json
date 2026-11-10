@@ -628,6 +628,10 @@
     "studiesLabel": "indicators",
     "badPublishedId": "That does not look like a published script id (PUB;user/script).",
     "someIdsRejected": "Added the valid ids; {count} line(s) were not in PUB;user/script form.",
-    "saveFailed": "Could not save to your account; the wall is kept in this browser for now."
+    "saveFailed": "Could not save to your account; the wall is kept in this browser for now.",
+    "indicatorSettings": "Indicator settings",
+    "noSettings": "This script has no settings.",
+    "resetSettings": "Reset to defaults",
+    "close": "Close"
   }
 }

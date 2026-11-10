@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     AreaSeries,
     CandlestickSeries,
@@ -16,6 +16,7 @@ import {
     type UTCTimestamp,
 } from 'lightweight-charts';
 import { computeIndicator, findIndicator, type Bar, type PineIndicator } from '@/lib/pine/indicators';
+import { formatLegend, resolveInputs } from '@/lib/pine/inputs';
 import type { Interval } from '@/lib/gate';
 import { cn } from '@/lib/utils';
 
@@ -32,6 +33,8 @@ type Props = {
     interval?: Interval;
     /** Indicator ids to draw; overlay indicators join the price pane, the rest get their own pane. */
     indicatorIds?: string[];
+    /** Per-indicator setting overrides, keyed by indicator id. */
+    inputValues?: Record<string, Record<string, number | boolean | string>>;
     height?: number;
     className?: string;
     onError?: (message: string) => void;
@@ -45,7 +48,15 @@ const DOWN = '#ef5350';
 
 const toUTCTime = (seconds: number) => seconds as UTCTimestamp;
 
-export default function PineChart({ symbol, interval = '5m', indicatorIds = [], height = 560, className, onError }: Props) {
+export default function PineChart({
+    symbol,
+    interval = '5m',
+    indicatorIds = [],
+    inputValues = {},
+    height = 560,
+    className,
+    onError,
+}: Props) {
     const containerRef = useRef<HTMLDivElement | null>(null);
     const chartRef = useRef<IChartApi | null>(null);
     const [bars, setBars] = useState<Bar[]>([]);
@@ -55,6 +66,15 @@ export default function PineChart({ symbol, interval = '5m', indicatorIds = [], 
     const indicators = useMemo(
         () => indicatorIds.map((id) => findIndicator(id)).filter((i): i is PineIndicator => Boolean(i)),
         [indicatorIds],
+    );
+
+    // The effective settings of every drawn indicator: the user's overrides over the defaults.
+    const effectiveInputs = useMemo(
+        () =>
+            Object.fromEntries(
+                indicators.map((indicator) => [indicator.id, resolveInputs(indicator, inputValues[indicator.id])]),
+            ),
+        [indicators, inputValues],
     );
 
     // ---- candles -----------------------------------------------------------
@@ -181,7 +201,7 @@ export default function PineChart({ symbol, interval = '5m', indicatorIds = [], 
         // Each non-overlay indicator gets its own pane, so several oscillators can stack.
         let paneIndex = 0;
         for (const indicator of indicators) {
-            const computed = computeIndicator(indicator, bars);
+            const computed = computeIndicator(indicator, bars, effectiveInputs[indicator.id]);
             const pane = indicator.overlay ? 0 : ++paneIndex;
 
             for (const plot of computed.plots) {
@@ -243,11 +263,91 @@ export default function PineChart({ symbol, interval = '5m', indicatorIds = [], 
                 }
             }
         };
-    }, [bars, indicators]);
+    }, [bars, indicators, effectiveInputs]);
+
+    // ---- legend ------------------------------------------------------------
+    // Which indicator lives in which pane, and with which settings. The chart itself has no
+    // room for labels, so the legend is drawn as an overlay above it.
+    const legend = useMemo(() => {
+        const rows: { pane: number; text: string; color: string }[] = [];
+        let paneIndex = 0;
+        for (const indicator of indicators) {
+            const pane = indicator.overlay ? 0 : ++paneIndex;
+            const values = effectiveInputs[indicator.id];
+            const plot = indicator.plots[0];
+            rows.push({
+                pane,
+                text: formatLegend(indicator, values),
+                color: plot?.color ?? '#a2a9b1',
+            });
+        }
+        return rows;
+    }, [indicators, effectiveInputs]);
+
+    // The panes are stacked vertically; several indicators can share one pane (the overlay ones
+    // all share the price pane), so each legend row gets its own line inside its pane.
+    const legendRows = useMemo(() => {
+        const perPane = new Map<number, number>();
+        return legend.map((row) => {
+            const line = perPane.get(row.pane) ?? 0;
+            perPane.set(row.pane, line + 1);
+            return { ...row, line };
+        });
+    }, [legend]);
+
+    // Where each pane starts, in pixels from the top of the chart. The chart grows and shrinks
+    // with the window, so the offsets are re-measured whenever the panes are (re)built.
+    const [paneOffsets, setPaneOffsets] = useState<number[]>([]);
+
+    const measurePanes = useCallback(() => {
+        const chart = chartRef.current;
+        if (!chart) return;
+        const offsets: number[] = [];
+        let top = 0;
+        for (const pane of chart.panes()) {
+            offsets.push(top);
+            top += pane.getHeight();
+        }
+        setPaneOffsets(offsets);
+    }, []);
+
+    // The legend needs the pane layout, so it is measured after the series are built.
+    useEffect(() => {
+        measurePanes();
+    }, [measurePanes, bars, indicators]);
+
+    useEffect(() => {
+        const container = containerRef.current;
+        if (!container) return;
+        const observer = new ResizeObserver(() => measurePanes());
+        observer.observe(container);
+        return () => observer.disconnect();
+    }, [measurePanes]);
 
     return (
         <div className={cn('relative', className)} style={{ height }}>
             <div ref={containerRef} className="h-full w-full" />
+            {legendRows.length > 0 && (
+                <div className="pointer-events-none absolute inset-0 overflow-hidden">
+                    {legendRows.map((row, index) => (
+                        <div
+                            key={`${row.pane}-${index}`}
+                            className="mono flex items-center gap-1.5 text-[11px] leading-none"
+                            style={{
+                                position: 'absolute',
+                                left: 8,
+                                top: (paneOffsets[row.pane] ?? 0) + 6 + row.line * 14,
+                            }}
+                        >
+                            <span
+                                className="inline-block h-[8px] w-[8px] shrink-0 rounded-[2px]"
+                                style={{ backgroundColor: row.color }}
+                            />
+                            <span style={{ color: TEXT }}>{row.text}</span>
+                        </div>
+                    ))}
+                </div>
+            )}
             {loading ? (
                 <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-faint">
                     加载 K 线…

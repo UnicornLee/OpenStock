@@ -628,6 +628,10 @@
     "studiesLabel": "wskazników",
     "badPublishedId": "To nie wygląda na identyfikator opublikowanego skryptu (PUB;user/script).",
     "someIdsRejected": "Dodano poprawne identyfikatory; {count} wiersz(ie) nie miało postaci PUB;user/script.",
-    "saveFailed": "Nie udało się zapisać na konto; ściana pozostaje na razie w tej przeglądarce."
+    "saveFailed": "Nie udało się zapisać na konto; ściana pozostaje na razie w tej przeglądarce.",
+    "indicatorSettings": "Ustawienia wskaźnika",
+    "noSettings": "Ten skrypt nie ma ustawień.",
+    "resetSettings": "Przywróć domyślne",
+    "close": "Zamknij"
   }
 }

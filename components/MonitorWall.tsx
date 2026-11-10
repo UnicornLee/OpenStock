@@ -1,12 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Maximize2, Minimize2, X } from 'lucide-react';
+import { Maximize2, Minimize2, Settings2, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import TradingViewWidget from '@/components/TradingViewWidget';
 import PineChart from '@/components/PineChart';
 import { CANDLE_CHART_WIDGET_CONFIG } from '@/lib/constants';
-import { PINE_INDICATORS } from '@/lib/pine/indicators';
+import { PINE_INDICATORS, findIndicator } from '@/lib/pine/indicators';
+import { formatLegend, resolveInputs, usePineInputs } from '@/lib/pine/inputs';
 import { TV_INTERVALS, type Interval } from '@/lib/gate';
 import { cn } from '@/lib/utils';
 import { getMonitorConfig, saveMonitorConfig } from '@/lib/actions/monitor.actions';
@@ -78,12 +79,14 @@ const ChartCard = ({
     chart,
     studies,
     pineIds,
+    inputValues,
     onRemove,
     onRename,
 }: {
     chart: Chart;
     studies: string[];
     pineIds: string[];
+    inputValues: Record<string, Record<string, number | boolean | string>>;
     onRemove: () => void;
     onRename: (name: string) => void;
 }) => {
@@ -196,12 +199,125 @@ const ChartCard = ({
                             symbol={chart.symbol}
                             interval={interval}
                             indicatorIds={pineIds}
+                            inputValues={inputValues}
                             height={expanded ? 600 : 420}
                         />
                     )}
                 </div>
             </div>
         </section>
+    );
+};
+
+/**
+ * The settings dialog of one Pine indicator.
+ *
+ * It lists the script's `input.*` values, so a script can be tuned the same way TradingView's
+ * own settings dialog allows it.
+ */
+const PineSettingsDialog = ({
+    indicatorId,
+    values,
+    onChange,
+    onReset,
+    onClose,
+}: {
+    indicatorId: string;
+    values: Record<string, number | boolean | string>;
+    onChange: (key: string, value: number | boolean | string) => void;
+    onReset: () => void;
+    onClose: () => void;
+}) => {
+    const t = useTranslations('Monitor');
+    const indicator = findIndicator(indicatorId);
+
+    useEffect(() => {
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') onClose();
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [onClose]);
+
+    if (!indicator) return null;
+
+    return (
+        <div
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-label={indicator.title}
+            onClick={(e) => {
+                if (e.target === e.currentTarget) onClose();
+            }}
+        >
+            <div className="card w-full max-w-md p-4 shadow-[0_24px_60px_oklch(0_0_0/0.6)]">
+                <div className="mb-3 flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                        <h3 className="section-title truncate">{indicator.title}</h3>
+                        <p className="text-[12px] text-faint">
+                            {indicator.source} — {indicator.description}
+                        </p>
+                    </div>
+                    <button type="button" onClick={onClose} className="icon-btn" title={t('close')} aria-label={t('close')}>
+                        <X />
+                    </button>
+                </div>
+
+                {indicator.inputs.length === 0 ? (
+                    <p className="text-[13px] text-faint">{t('noSettings')}</p>
+                ) : (
+                    <div className="flex flex-col gap-3">
+                        {indicator.inputs.map((input) => {
+                            const value = values[input.key];
+                            if (input.type === 'bool') {
+                                return (
+                                    <label key={input.key} className="flex items-center justify-between gap-3 text-[13px]">
+                                        <span>{input.title}</span>
+                                        <input
+                                            type="checkbox"
+                                            checked={Boolean(value)}
+                                            onChange={(e) => onChange(input.key, e.target.checked)}
+                                            className="h-4 w-4 accent-[var(--brand)]"
+                                        />
+                                    </label>
+                                );
+                            }
+                            return (
+                                <label key={input.key} className="flex flex-col gap-1 text-[13px]">
+                                    <span className="flex items-baseline justify-between gap-2">
+                                        <span>{input.title}</span>
+                                        <span className="mono text-[12px] text-faint">{String(value ?? input.default)}</span>
+                                    </span>
+                                    <input
+                                        type="number"
+                                        value={String(value ?? input.default)}
+                                        min={input.min}
+                                        max={input.max}
+                                        step={input.step ?? (input.type === 'int' ? 1 : 0.1)}
+                                        onChange={(e) => {
+                                            const next = Number(e.target.value);
+                                            if (!Number.isFinite(next)) return;
+                                            onChange(input.key, input.type === 'int' ? Math.round(next) : next);
+                                        }}
+                                        className="mono rounded-[10px] bg-hover/60 px-3 py-2 text-[13px] outline-none"
+                                    />
+                                </label>
+                            );
+                        })}
+                    </div>
+                )}
+
+                <div className="mt-4 flex items-center justify-between gap-2">
+                    <button type="button" onClick={onReset} className="btn btn-ghost h-9 px-3 text-[13px]">
+                        {t('resetSettings')}
+                    </button>
+                    <button type="button" onClick={onClose} className="btn h-9 px-4 text-[13px]">
+                        {t('close')}
+                    </button>
+                </div>
+            </div>
+        </div>
     );
 };
 
@@ -215,7 +331,11 @@ const MonitorWall = ({ initialCharts }: { initialCharts: Chart[] }) => {
     const [mounted, setMounted] = useState(false);
     const [saving, setSaving] = useState(false);
     const [notice, setNotice] = useState('');
+    const [settingsFor, setSettingsFor] = useState<string | null>(null);
     const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    // The settings of every Pine indicator on the wall; shared by all cards.
+    const pineInputs = usePineInputs();
 
     // Load the wall from the account first; fall back to this browser's copy if the user is not
     // signed in (the page is behind auth, but a stale session should still show something).
@@ -329,23 +449,38 @@ const MonitorWall = ({ initialCharts }: { initialCharts: Chart[] }) => {
                     <div>
                         <p className="mb-2 text-[12px] text-faint">{t('enginePineHint')}</p>
                         <div className="flex flex-wrap gap-2">
-                            {PINE_INDICATORS.map((i) => (
-                                <button
-                                    key={i.id}
-                                    type="button"
-                                    onClick={() => togglePine(i.id)}
-                                    aria-pressed={pineStudies.includes(i.id)}
-                                    title={`${i.title} — ${i.description}`}
-                                    className={cn(
-                                        'rounded-[10px] px-3 py-1.5 text-[13px] transition-colors',
-                                        pineStudies.includes(i.id)
-                                            ? 'bg-brand-soft text-brand-ink'
-                                            : 'bg-hover/60 text-muted-foreground hover:bg-hover',
-                                    )}
-                                >
-                                    {i.shorttitle}
-                                </button>
-                            ))}
+                            {PINE_INDICATORS.map((i) => {
+                                const active = pineStudies.includes(i.id);
+                                const effective = resolveInputs(i, pineInputs.values[i.id]);
+                                return (
+                                    <span
+                                        key={i.id}
+                                        className={cn(
+                                            'flex items-center gap-1 rounded-[10px] pl-1 pr-0.5 transition-colors',
+                                            active ? 'bg-brand-soft text-brand-ink' : 'bg-hover/60 text-muted-foreground hover:bg-hover',
+                                        )}
+                                    >
+                                        <button
+                                            type="button"
+                                            onClick={() => togglePine(i.id)}
+                                            aria-pressed={active}
+                                            title={`${i.title} — ${i.description}`}
+                                            className="px-2 py-1.5 text-[13px]"
+                                        >
+                                            {active ? formatLegend(i, effective) : i.shorttitle}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setSettingsFor(i.id)}
+                                            title={t('indicatorSettings')}
+                                            aria-label={`${t('indicatorSettings')}: ${i.title}`}
+                                            className="rounded-[6px] p-1 opacity-70 transition-opacity hover:opacity-100"
+                                        >
+                                            <Settings2 className="h-3.5 w-3.5" />
+                                        </button>
+                                    </span>
+                                );
+                            })}
                             {PINE_INDICATORS.length === 0 && <span className="text-[13px] text-faint">{t('noIndicators')}</span>}
                         </div>
                     </div>
@@ -427,6 +562,7 @@ const MonitorWall = ({ initialCharts }: { initialCharts: Chart[] }) => {
                         chart={chart}
                         studies={studies}
                         pineIds={pineStudies}
+                        inputValues={pineInputs.values}
                         onRemove={() => setCharts((current) => current.filter((c) => c.symbol !== chart.symbol))}
                         onRename={(name) => setCharts((current) => current.map((c) => (c.symbol === chart.symbol ? { ...c, name } : c)))}
                     />
@@ -435,6 +571,16 @@ const MonitorWall = ({ initialCharts }: { initialCharts: Chart[] }) => {
 
             {charts.length === 0 && (
                 <div className="card p-8 text-center text-[13px] text-faint">{t('empty')}</div>
+            )}
+
+            {settingsFor && (
+                <PineSettingsDialog
+                    indicatorId={settingsFor}
+                    values={pineInputs.forIndicator(settingsFor)}
+                    onChange={(key, value) => pineInputs.update(settingsFor, key, value)}
+                    onReset={() => pineInputs.reset(settingsFor)}
+                    onClose={() => setSettingsFor(null)}
+                />
             )}
         </div>
     );
