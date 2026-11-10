@@ -87,14 +87,15 @@ export type FetchResult = { ok: true; candles: Candle[] } | { ok: false; error: 
 /**
  * Fetches candles from Gate.io.
  *
- * `limit` is capped at 1000 (the API maximum per call). To get more history the range is
- * walked backwards in `window` sized steps, oldest data first.
+ * Each call asks for at most `window` candles (999 is the largest page the API accepts —
+ * `limit=1000` is rejected with HTTP 400). To get more history the range is walked
+ * backwards in `window` sized steps, oldest data first.
  */
 export const fetchCandles = async (
     symbol: string,
     interval: Interval = '5m',
     limit = 500,
-    window = 1000,
+    window = 999,
 ): Promise<FetchResult> => {
     const pair = toGatePair(symbol);
     if (!pair) return { ok: false, error: `unsupported symbol: ${symbol}` };
@@ -112,6 +113,7 @@ export const fetchCandles = async (
 
     try {
         while (collected.length < want) {
+            // Gate rejects `limit=1000`; 999 is the largest page it accepts.
             const size = Math.min(window, want - collected.length);
             const from = to - stepSeconds * size;
             const url = `${GATE_BASE}/spot/candlesticks?currency_pair=${encodeURIComponent(pair)}&interval=${gateInterval}&limit=${size}&from=${from}&to=${to}`;
@@ -169,7 +171,8 @@ const resample = async (symbol: string, interval: Interval, limit: number): Prom
     const want = Math.min(Math.max(limit, 1), 5000);
     const bucket = intervalSeconds(interval);
     // Enough daily bars to fill the requested number of buckets, with some slack.
-    const daily = await fetchCandles(symbol, '1d', Math.min(Math.ceil((want * bucket) / 86400) + 40, 5000));
+    const dailyLimit = Math.min(Math.ceil((want * bucket) / 86400) + 40, 5000);
+    const daily = await fetchCandles(symbol, '1d', dailyLimit);
     if (!daily.ok) return daily;
 
     const merged: Candle[] = [];

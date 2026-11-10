@@ -304,16 +304,54 @@ export default function PineChart({
         if (!chart) return;
         const offsets: number[] = [];
         let top = 0;
-        for (const pane of chart.panes()) {
+        // `chart.panes()` reads the model, while `chart.paneSize()` reads the rendered
+        // widgets; the two can disagree for a frame after a pane was added, and
+        // `paneSize` throws on the missing widget. The pane's own height is enough here.
+        const panes = chart.panes();
+        for (let i = 0; i < panes.length; i++) {
             offsets.push(top);
-            top += pane.getHeight();
+            top += panes[i].getHeight();
         }
-        setPaneOffsets(offsets);
+        // A pane that has not been laid out yet reports a height of 0. Spread the chart
+        // area over the panes that have no height yet, so the legend still lands on the
+        // right row instead of piling up at the top.
+        const missing = panes.filter((pane) => pane.getHeight() === 0).length;
+        if (missing > 0) {
+            const container = containerRef.current;
+            const used = offsets[offsets.length - 1] ?? 0;
+            const available = Math.max((container?.clientHeight ?? 0) - used, 0);
+            const share = Math.floor(available / missing);
+            let fallback = used;
+            for (let i = 0; i < panes.length; i++) {
+                if (panes[i].getHeight() === 0) {
+                    offsets[i] = fallback;
+                    fallback += share;
+                }
+            }
+        }
+        setPaneOffsets((previous) => {
+            const same =
+                previous.length === offsets.length &&
+                previous.every((value, index) => value === offsets[index]);
+            return same ? previous : offsets;
+        });
     }, []);
 
-    // The legend needs the pane layout, so it is measured after the series are built.
+    // The legend needs the pane layout. Adding a pane changes the layout without resizing
+    // the container, so the offsets are measured over the next few frames as well.
     useEffect(() => {
-        measurePanes();
+        let frame = 0;
+        let cancelled = false;
+        const measure = () => {
+            if (cancelled) return;
+            measurePanes();
+            frame += 1;
+            if (frame < 8) requestAnimationFrame(measure);
+        };
+        measure();
+        return () => {
+            cancelled = true;
+        };
     }, [measurePanes, bars, indicators]);
 
     useEffect(() => {
@@ -328,11 +366,11 @@ export default function PineChart({
         <div className={cn('relative', className)} style={{ height }}>
             <div ref={containerRef} className="h-full w-full" />
             {legendRows.length > 0 && (
-                <div className="pointer-events-none absolute inset-0 overflow-hidden">
+                <div className="pointer-events-none absolute inset-0 z-10 overflow-hidden">
                     {legendRows.map((row, index) => (
                         <div
                             key={`${row.pane}-${index}`}
-                            className="mono flex items-center gap-1.5 text-[11px] leading-none"
+                            className="mono flex items-center gap-1.5 rounded-[3px] bg-page/70 px-1 py-[2px] text-[11px] leading-none"
                             style={{
                                 position: 'absolute',
                                 left: 8,
