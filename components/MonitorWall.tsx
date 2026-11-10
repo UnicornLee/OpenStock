@@ -152,6 +152,17 @@ const ChartCard = ({
         localStorage.setItem(INTERVAL_KEY, next);
     };
 
+    // Escape closes the expanded chart — the overlay covers the header, so the
+    // collapse button has to be reachable without hunting for it.
+    useEffect(() => {
+        if (!expanded) return;
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') setExpanded(false);
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [expanded]);
+
     // The indicators this chart actually carries, split by engine.
     const pineChips = chart.pineStudies
         .map((id) => findIndicator(id))
@@ -167,7 +178,7 @@ const ChartCard = ({
     }));
 
     return (
-        <section className="hatch">
+        <section className={cn('hatch', expanded && 'fixed inset-3 z-50')}>
             <div className="section-head">
                 <div className="flex min-w-0 items-center gap-2">
                     {editing ? (
@@ -187,7 +198,7 @@ const ChartCard = ({
                     <span className="mono truncate text-[13px] text-faint">{chart.symbol}</span>
                 </div>
                 <div className="flex items-center gap-1">
-                    <button type="button" onClick={() => setExpanded((v) => !v)} className="icon-btn" title={t('expand')} aria-label={t('expand')}>
+                    <button type="button" onClick={() => setExpanded((v) => !v)} className="icon-btn" title={expanded ? t('collapse') : t('expand')} aria-label={expanded ? t('collapse') : t('expand')}>
                         {expanded ? <Minimize2 /> : <Maximize2 />}
                     </button>
                     <button type="button" onClick={onRemove} className="icon-btn" title={t('remove')} aria-label={t('remove')}>
@@ -195,7 +206,7 @@ const ChartCard = ({
                     </button>
                 </div>
             </div>
-            <div className={cn('card', expanded && 'fixed inset-3 z-50 shadow-[0_0_0_4px_var(--frame),0_24px_60px_oklch(0_0_0/0.6)]')}>
+            <div className={cn('card', expanded && 'flex h-full flex-col shadow-[0_0_0_4px_var(--frame),0_24px_60px_oklch(0_0_0/0.6)]')}>
                 <div className="flex flex-wrap items-center gap-2 border-b border-[var(--frame)] px-2 py-1.5">
                     <div className="flex items-center gap-1">
                         {(['tv', 'pine'] as const).map((m) => (
@@ -234,6 +245,18 @@ const ChartCard = ({
                     )}
                     {mode === 'tv' && (
                         <span className="text-[12px] text-faint">{t('engineTvNote')}</span>
+                    )}
+                    {expanded && (
+                        <button
+                            type="button"
+                            onClick={() => setExpanded(false)}
+                            className="ml-auto flex items-center gap-1 rounded-[8px] px-2 py-1 text-[12px] text-muted-foreground transition-colors hover:bg-hover"
+                            title={t('collapse')}
+                            aria-label={t('collapse')}
+                        >
+                            <Minimize2 className="h-3 w-3" />
+                            {t('collapse')}
+                        </button>
                     )}
                 </div>
 

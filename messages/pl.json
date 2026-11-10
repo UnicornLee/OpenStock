@@ -617,6 +617,7 @@
     "addPublished": "Dodaj opublikowany skrypt",
     "empty": "Brak wykresów. Dodaj powyżej.",
     "expand": "Powiększ",
+    "collapse": "Zwin",
     "remove": "Usuń",
     "renameHint": "Kliknij, aby zmienić nazwę",
     "publishedPlaceholder": "PUB;user/script\nPUB;user/another_script",

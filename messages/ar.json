@@ -617,6 +617,7 @@
     "addPublished": "أضف سكربت منشور",
     "empty": "لا توجد رسوم بيانية. أضف واحداً أعلاه.",
     "expand": "توسيع",
+    "collapse": "اطلاق",
     "remove": "إزالة",
     "renameHint": "انقر لإعادة التسمية",
     "publishedPlaceholder": "PUB;user/script\nPUB;user/another_script",

@@ -617,6 +617,7 @@
     "addPublished": "Add published script",
     "empty": "No charts yet. Add one above.",
     "expand": "Expand",
+    "collapse": "Collapse",
     "remove": "Remove",
     "renameHint": "Click to rename",
     "publishedPlaceholder": "PUB;user/script\nPUB;user/another_script",
