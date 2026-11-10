@@ -16,6 +16,8 @@ export interface MonitorConfig extends Document {
     charts: MonitorChart[];
     studies: string[];
     published: MonitorPublished[];
+    /** Ids of the self-hosted Pine indicators that are enabled on the wall. */
+    pineStudies: string[];
     updatedAt: Date;
 }
 
@@ -44,6 +46,7 @@ const MonitorConfigSchema = new Schema<MonitorConfig>(
             ],
             default: [],
         },
+        pineStudies: { type: [String], default: [] },
         updatedAt: { type: Date, default: Date.now },
     },
     { timestamps: { createdAt: true, updatedAt: true } }

@@ -4,13 +4,19 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Maximize2, Minimize2, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import TradingViewWidget from '@/components/TradingViewWidget';
+import PineChart from '@/components/PineChart';
 import { CANDLE_CHART_WIDGET_CONFIG } from '@/lib/constants';
+import { PINE_INDICATORS } from '@/lib/pine/indicators';
+import { TV_INTERVALS, type Interval } from '@/lib/gate';
 import { cn } from '@/lib/utils';
 import { getMonitorConfig, saveMonitorConfig } from '@/lib/actions/monitor.actions';
 
 // A monitoring wall: many charts at once, each with any number of indicators.
-// TradingView's free embed caps a single chart at two indicators, so a self-hosted wall
-// is the only way to watch more than that in one view.
+//
+// Two rendering engines sit side by side:
+//   - 'tv'   the TradingView embed. It only knows TradingView's own study ids.
+//   - 'pine' a self-hosted chart. It computes the user's own Pine scripts locally from
+//            Gate.io candles, so scripts that cannot be published on TradingView still work.
 
 const scriptUrl = `https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js`;
 
@@ -31,6 +37,9 @@ const BUILT_IN = [
 const PUBLISHED_KEY = 'openstock:monitor-published';
 const CHARTS_KEY = 'openstock:monitor-charts';
 const STUDIES_KEY = 'openstock:monitor-studies';
+const PINE_KEY = 'openstock:monitor-pine';
+const MODE_KEY = 'openstock:monitor-mode';
+const INTERVAL_KEY = 'openstock:monitor-interval';
 
 // A sensible default wall, so the page is useful before anything is configured.
 const DEFAULT_CHARTS = [
@@ -42,6 +51,7 @@ const DEFAULT_CHARTS = [
 
 type Chart = { symbol: string; name: string };
 type Published = { id: string; label: string };
+type Engine = 'tv' | 'pine';
 
 const SYMBOL_PATTERN = /^[A-Z0-9.:\-]{1,20}$/;
 const PUBLISHED_PATTERN = /^PUB;[^\s/]{1,64}\/[^\s]{1,80}$/;
@@ -67,11 +77,13 @@ const readJson = <T,>(key: string, fallback: T): T => {
 const ChartCard = ({
     chart,
     studies,
+    pineIds,
     onRemove,
     onRename,
 }: {
     chart: Chart;
     studies: string[];
+    pineIds: string[];
     onRemove: () => void;
     onRename: (name: string) => void;
 }) => {
@@ -79,11 +91,32 @@ const ChartCard = ({
     const [expanded, setExpanded] = useState(false);
     const [editing, setEditing] = useState(false);
     const [name, setName] = useState(chart.name);
+    const [mode, setMode] = useState<Engine>('tv');
+    const [interval, setInterval] = useState<Interval>('5m');
 
     const config = useMemo(
         () => ({ ...CANDLE_CHART_WIDGET_CONFIG(chart.symbol), studies }),
         [chart.symbol, studies],
     );
+
+    // The engine choice and the timeframe are wall-wide preferences, so they are kept in
+    // localStorage and shared by every card.
+    useEffect(() => {
+        const savedMode = localStorage.getItem(MODE_KEY);
+        if (savedMode === 'tv' || savedMode === 'pine') setMode(savedMode);
+        const savedInterval = localStorage.getItem(INTERVAL_KEY);
+        if (savedInterval && TV_INTERVALS.some((i) => i.id === savedInterval)) setInterval(savedInterval as Interval);
+    }, []);
+
+    const switchMode = (next: Engine) => {
+        setMode(next);
+        localStorage.setItem(MODE_KEY, next);
+    };
+
+    const switchInterval = (next: Interval) => {
+        setInterval(next);
+        localStorage.setItem(INTERVAL_KEY, next);
+    };
 
     return (
         <section className="hatch">
@@ -115,8 +148,57 @@ const ChartCard = ({
                 </div>
             </div>
             <div className={cn('card', expanded && 'fixed inset-3 z-50 shadow-[0_0_0_4px_var(--frame),0_24px_60px_oklch(0_0_0/0.6)]')}>
+                <div className="flex items-center gap-2 border-b border-[var(--frame)] px-2 py-1.5">
+                    <div className="flex items-center gap-1">
+                        {(['tv', 'pine'] as const).map((m) => (
+                            <button
+                                key={m}
+                                type="button"
+                                onClick={() => switchMode(m)}
+                                aria-pressed={mode === m}
+                                title={m === 'tv' ? t('engineTvHint') : t('enginePineHint')}
+                                className={cn(
+                                    'rounded-[8px] px-2 py-1 text-[12px] transition-colors',
+                                    mode === m ? 'bg-brand-soft text-brand-ink' : 'text-muted-foreground hover:bg-hover',
+                                )}
+                            >
+                                {m === 'tv' ? 'TradingView' : 'Pine'}
+                            </button>
+                        ))}
+                    </div>
+                    {mode === 'pine' && (
+                        <div className="flex items-center gap-1">
+                            {TV_INTERVALS.map((iv) => (
+                                <button
+                                    key={iv.id}
+                                    type="button"
+                                    onClick={() => switchInterval(iv.id)}
+                                    aria-pressed={interval === iv.id}
+                                    className={cn(
+                                        'mono rounded-[8px] px-1.5 py-0.5 text-[11px] transition-colors',
+                                        interval === iv.id ? 'bg-brand-soft text-brand-ink' : 'text-muted-foreground hover:bg-hover',
+                                    )}
+                                >
+                                    {iv.label}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                    {mode === 'tv' && (
+                        <span className="text-[12px] text-faint">{t('engineTvNote')}</span>
+                    )}
+                </div>
                 <div className={expanded ? 'h-full' : undefined}>
-                    <TradingViewWidget scriptUrl={scriptUrl} config={config} height={expanded ? 600 : 420} />
+                    {mode === 'tv' ? (
+                        <TradingViewWidget scriptUrl={scriptUrl} config={config} height={expanded ? 600 : 420} />
+                    ) : (
+                        <PineChart
+                            symbol={chart.symbol}
+                            interval={interval}
+                            indicatorIds={pineIds}
+                            height={expanded ? 600 : 420}
+                        />
+                    )}
                 </div>
             </div>
         </section>
@@ -128,6 +210,7 @@ const MonitorWall = ({ initialCharts }: { initialCharts: Chart[] }) => {
     const [charts, setCharts] = useState<Chart[]>(initialCharts);
     const [studies, setStudies] = useState<string[]>([]);
     const [published, setPublished] = useState<Published[]>([]);
+    const [pineStudies, setPineStudies] = useState<string[]>([]);
     const [symbol, setSymbol] = useState('');
     const [mounted, setMounted] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -145,6 +228,7 @@ const MonitorWall = ({ initialCharts }: { initialCharts: Chart[] }) => {
                 if (config.charts.length) setCharts(config.charts);
                 setStudies(config.studies);
                 setPublished(config.published);
+                setPineStudies(config.pineStudies ?? []);
                 if (config.charts.length === 0) {
                     const local = readJson<Chart[]>(CHARTS_KEY, []);
                     if (local.length) setCharts(local);
@@ -154,6 +238,7 @@ const MonitorWall = ({ initialCharts }: { initialCharts: Chart[] }) => {
                 setCharts(readJson<Chart[]>(CHARTS_KEY, initialCharts));
                 setStudies(readJson<string[]>(STUDIES_KEY, []));
                 setPublished(readJson<Published[]>(PUBLISHED_KEY, []));
+                setPineStudies(readJson<string[]>(PINE_KEY, []));
             }
         })();
         return () => { cancelled = true; };
@@ -163,21 +248,26 @@ const MonitorWall = ({ initialCharts }: { initialCharts: Chart[] }) => {
     useEffect(() => { if (mounted) localStorage.setItem(CHARTS_KEY, JSON.stringify(charts)); }, [charts, mounted]);
     useEffect(() => { if (mounted) localStorage.setItem(STUDIES_KEY, JSON.stringify(studies)); }, [studies, mounted]);
     useEffect(() => { if (mounted) localStorage.setItem(PUBLISHED_KEY, JSON.stringify(published)); }, [published, mounted]);
+    useEffect(() => { if (mounted) localStorage.setItem(PINE_KEY, JSON.stringify(pineStudies)); }, [pineStudies, mounted]);
 
     useEffect(() => {
         if (!mounted) return;
         if (saveTimer.current) clearTimeout(saveTimer.current);
         saveTimer.current = setTimeout(() => {
             setSaving(true);
-            void saveMonitorConfig({ charts, studies, published })
+            void saveMonitorConfig({ charts, studies, published, pineStudies })
                 .catch(() => setNotice(t('saveFailed')))
                 .finally(() => setSaving(false));
         }, 600);
         return () => { if (saveTimer.current) clearTimeout(saveTimer.current); };
-    }, [charts, studies, published, mounted, t]);
+    }, [charts, studies, published, pineStudies, mounted, t]);
 
     const toggleStudy = useCallback((id: string) => {
         setStudies((current) => (current.includes(id) ? current.filter((s) => s !== id) : [...current, id]));
+    }, []);
+
+    const togglePine = useCallback((id: string) => {
+        setPineStudies((current) => (current.includes(id) ? current.filter((s) => s !== id) : [...current, id]));
     }, []);
 
     const addChart = () => {
@@ -229,25 +319,53 @@ const MonitorWall = ({ initialCharts }: { initialCharts: Chart[] }) => {
                         <p className="section-sub">{t('indicatorsSub')}</p>
                     </div>
                 </div>
-                <div className="card flex flex-wrap gap-2 p-3">
-                    {allStudies.map((s) => (
-                        <button
-                            key={s.id}
-                            type="button"
-                            onClick={() => toggleStudy(s.id)}
-                            aria-pressed={studies.includes(s.id)}
-                            title={s.id}
-                            className={cn(
-                                'rounded-[10px] px-3 py-1.5 text-[13px] transition-colors',
-                                studies.includes(s.id)
-                                    ? 'bg-brand-soft text-brand-ink'
-                                    : 'bg-hover/60 text-muted-foreground hover:bg-hover',
-                            )}
-                        >
-                            {s.label}
-                        </button>
-                    ))}
-                    {allStudies.length === 0 && <span className="text-[13px] text-faint">{t('noIndicators')}</span>}
+                <div className="card flex flex-col gap-3 p-3">
+                    <div>
+                        <p className="mb-2 text-[12px] text-faint">{t('enginePineHint')}</p>
+                        <div className="flex flex-wrap gap-2">
+                            {PINE_INDICATORS.map((i) => (
+                                <button
+                                    key={i.id}
+                                    type="button"
+                                    onClick={() => togglePine(i.id)}
+                                    aria-pressed={pineStudies.includes(i.id)}
+                                    title={`${i.title} — ${i.description}`}
+                                    className={cn(
+                                        'rounded-[10px] px-3 py-1.5 text-[13px] transition-colors',
+                                        pineStudies.includes(i.id)
+                                            ? 'bg-brand-soft text-brand-ink'
+                                            : 'bg-hover/60 text-muted-foreground hover:bg-hover',
+                                    )}
+                                >
+                                    {i.shorttitle}
+                                </button>
+                            ))}
+                            {PINE_INDICATORS.length === 0 && <span className="text-[13px] text-faint">{t('noIndicators')}</span>}
+                        </div>
+                    </div>
+                    <div>
+                        <p className="mb-2 text-[12px] text-faint">{t('engineTvHint')}</p>
+                        <div className="flex flex-wrap gap-2">
+                            {allStudies.map((s) => (
+                                <button
+                                    key={s.id}
+                                    type="button"
+                                    onClick={() => toggleStudy(s.id)}
+                                    aria-pressed={studies.includes(s.id)}
+                                    title={s.id}
+                                    className={cn(
+                                        'rounded-[10px] px-3 py-1.5 text-[13px] transition-colors',
+                                        studies.includes(s.id)
+                                            ? 'bg-brand-soft text-brand-ink'
+                                            : 'bg-hover/60 text-muted-foreground hover:bg-hover',
+                                    )}
+                                >
+                                    {s.label}
+                                </button>
+                            ))}
+                            {allStudies.length === 0 && <span className="text-[13px] text-faint">{t('noIndicators')}</span>}
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -291,7 +409,7 @@ const MonitorWall = ({ initialCharts }: { initialCharts: Chart[] }) => {
                 </div>
                 <div className="card flex flex-wrap items-center gap-3 p-3 text-[13px] text-muted-foreground">
                     <span>{saving ? t('saving') : t('saved')}</span>
-                    <span className="mono text-faint">{charts.length} {t('chartsLabel')} · {studies.length} {t('studiesLabel')}</span>
+                    <span className="mono text-faint">{charts.length} {t('chartsLabel')} · {studies.length} {t('studiesLabel')} · {pineStudies.length} {t('pineLabel')}</span>
                     {notice && <span className="text-amber-600 dark:text-amber-400">{notice}</span>}
                 </div>
             </div>
@@ -302,6 +420,7 @@ const MonitorWall = ({ initialCharts }: { initialCharts: Chart[] }) => {
                         key={chart.symbol}
                         chart={chart}
                         studies={studies}
+                        pineIds={pineStudies}
                         onRemove={() => setCharts((current) => current.filter((c) => c.symbol !== chart.symbol))}
                         onRename={(name) => setCharts((current) => current.map((c) => (c.symbol === chart.symbol ? { ...c, name } : c)))}
                     />
