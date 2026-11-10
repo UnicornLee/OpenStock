@@ -246,18 +246,6 @@ const ChartCard = ({
                     {mode === 'tv' && (
                         <span className="text-[12px] text-faint">{t('engineTvNote')}</span>
                     )}
-                    {expanded && (
-                        <button
-                            type="button"
-                            onClick={() => setExpanded(false)}
-                            className="ml-auto flex items-center gap-1 rounded-[8px] px-2 py-1 text-[12px] text-muted-foreground transition-colors hover:bg-hover"
-                            title={t('collapse')}
-                            aria-label={t('collapse')}
-                        >
-                            <Minimize2 className="h-3 w-3" />
-                            {t('collapse')}
-                        </button>
-                    )}
                 </div>
 
                 {/* This chart's own indicators. Every chip is removable, and a Pine chip can be
