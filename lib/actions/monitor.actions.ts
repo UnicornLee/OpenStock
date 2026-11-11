@@ -23,9 +23,11 @@ export interface MonitorPublishedInput {
 
 // TradingView symbol tickers: BINANCE:BTCUSDT, NASDAQ:AAPL, OANDA:EURUSD.
 const SYMBOL_PATTERN = /^[A-Z0-9.:\-]{1,20}$/;
-// A published indicator id: PUB;<user>/<script>. The user name may contain dots, the script name
-// anything that is not a slash.
-const PUBLISHED_PATTERN = /^PUB;[^\s/]{1,64}\/[^\s]{1,80}$/;
+// A published indicator id comes in two shapes:
+//   PUB;<user>/<script>   the classic form, where the script name is readable
+//   PUB;<32 hex chars>    the form TradingView hands out for a starred script
+// The second shape is what the Favorites panel shows, so it has to be accepted too.
+const PUBLISHED_PATTERN = /^(?:PUB;[^\s/]{1,64}\/[^\s]{1,80}|PUB;[A-Za-z0-9]{16,64})$/;
 
 const MAX_CHARTS = 24;
 const MAX_STUDIES = 40;

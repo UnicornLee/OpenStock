@@ -638,6 +638,12 @@
     "applyToAll": "Kopiuj na wszystkie wykresy",
     "applyToAllHint": "Kopiuje wskaźniki Pine z tego wykresu na pozostałe wykresy na ścianie.",
     "perChartIndicators": "każdy wykres ma własne wskaźniki",
-    "removeIndicator": "Usuń wskaźnik"
+    "removeIndicator": "Usuń wskaźnik",
+    "favoritesTitle": "Ulubione TradingView",
+    "favoritesSub": "Przenieś do tej ściany skrypty oznaczone gwiazdką w TradingView.",
+    "favoritesPlaceholder": "PUB;807cab71605b4b2e8ef7e0e705854af4 | Stochastic Z-Score [AlgoAlpha]\nPUB;e15e52b27d234f238522c37120642c73 | Volume Footprint",
+    "favoritesHint": "Po jednym w wierszu, jako PUB;<id> lub PUB;<id> | Nazwa. Skopiuj identyfikator z ikony gwiazdki w oknie wskaźników TradingView.",
+    "addFavorites": "Dodaj ulubione",
+    "addFavoritesToAll": "Dodaj ulubione do wszystkich wykresów"
   }
 }

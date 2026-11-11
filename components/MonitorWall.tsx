@@ -66,14 +66,32 @@ type Published = { id: string; label: string };
 type Engine = 'tv' | 'pine';
 
 const SYMBOL_PATTERN = /^[A-Z0-9.:\-]{1,20}$/;
-const PUBLISHED_PATTERN = /^PUB;[^\s/]{1,64}\/[^\s]{1,80}$/;
+// A published indicator id comes in two shapes:
+//   PUB;<user>/<script>   the classic form, where the script name is readable
+//   PUB;<32 hex chars>    the form TradingView hands out for a starred script
+// The second shape is what the Favorites panel shows, so it has to be accepted too.
+const PUBLISHED_PATTERN = /^(?:PUB;[^\s/]{1,64}\/[^\s]{1,80}|PUB;[A-Za-z0-9]{16,64})$/;
 
 // Published ids are pasted in batches, so accept newline, comma or whitespace between them.
-const splitPublished = (raw: string): string[] =>
-    raw
+// The id itself contains a semicolon ("PUB;abc"), so the split has to keep that one intact:
+// split on the separators, then glue a lone "PUB" back onto the piece that follows it.
+const splitPublished = (raw: string): string[] => {
+    const parts = raw
         .split(/[\s,;]+/)
         .map((s) => s.trim())
         .filter(Boolean);
+
+    const out: string[] = [];
+    for (let i = 0; i < parts.length; i++) {
+        if (parts[i] === 'PUB' && i + 1 < parts.length) {
+            out.push(`PUB;${parts[i + 1]}`);
+            i += 1;
+        } else {
+            out.push(parts[i]);
+        }
+    }
+    return out;
+};
 
 const readJson = <T,>(key: string, fallback: T): T => {
     try {
@@ -436,6 +454,8 @@ const MonitorWall = ({ initialCharts }: { initialCharts: Chart[] }) => {
     const [charts, setCharts] = useState<Chart[]>(initialCharts);
     const [published, setPublished] = useState<Published[]>([]);
     const [symbol, setSymbol] = useState('');
+    /** The pasted list of TradingView favorites, one "PUB;<id> | Name" per line. */
+    const [favoritesInput, setFavoritesInput] = useState('');
     const [mounted, setMounted] = useState(false);
     const [saving, setSaving] = useState(false);
     const [notice, setNotice] = useState('');
@@ -550,31 +570,119 @@ const MonitorWall = ({ initialCharts }: { initialCharts: Chart[] }) => {
     };
 
     // Accepts one id or a whole batch: paste every id you published, separated by newlines.
+    // The batch may carry "PUB;<id> | Label" pairs, so a pasted list keeps its readable names.
     const addPublished = () => {
         const ids = splitPublished(symbol);
-        const valid = ids.filter((id) => PUBLISHED_PATTERN.test(id));
-        const rejected = ids.length - valid.length;
+        const valid: { id: string; label: string }[] = [];
+        const rejected: string[] = [];
+        for (const raw of ids) {
+            const [idPart, ...labelParts] = raw.split('|');
+            const id = idPart.trim();
+            if (!PUBLISHED_PATTERN.test(id)) {
+                rejected.push(raw);
+                continue;
+            }
+            const label = labelParts.join('|').trim() || id.split('/').pop() || id;
+            valid.push({ id, label });
+        }
         if (!valid.length) {
-            if (rejected) setNotice(t('badPublishedId'));
+            if (rejected.length) setNotice(t('badPublishedId'));
             return;
         }
 
         setPublished((current) => {
             const merged = [...current];
-            for (const id of valid) {
-                if (!merged.some((p) => p.id === id)) {
-                    merged.push({ id, label: id.split('/').pop() ?? id });
+            for (const { id, label } of valid) {
+                const existing = merged.find((p) => p.id === id);
+                if (!existing) {
+                    merged.push({ id, label });
+                } else if (existing.label === id && label !== id) {
+                    existing.label = label;
                 }
             }
             return merged;
         });
         setSymbol('');
-        setNotice(rejected ? t('someIdsRejected', { count: rejected }) : '');
+        setNotice(rejected.length ? t('someIdsRejected', { count: rejected.length }) : '');
+    };
+
+    /**
+     * Parse a pasted favorites list. Each line is "PUB;<id>" or "PUB;<id> | Name";
+     * a bare id also works, and the name falls back to the id itself.
+     */
+    const parseFavorites = (raw: string): { id: string; label: string }[] => {
+        const out: { id: string; label: string }[] = [];
+        const seen = new Set<string>();
+        for (const line of raw.split(/[\n\r]+/)) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+            const [idPart, ...labelParts] = trimmed.split('|');
+            const id = idPart.trim();
+            if (!PUBLISHED_PATTERN.test(id) || seen.has(id)) continue;
+            seen.add(id);
+            const label = labelParts.join('|').trim() || id;
+            out.push({ id, label });
+        }
+        return out;
+    };
+
+    /** Register the favorites in the catalog and put them on the chart being edited. */
+    const addFavorites = () => {
+        const parsed = parseFavorites(favoritesInput);
+        if (!parsed.length) {
+            setNotice(t('badPublishedId'));
+            return;
+        }
+        setPublished((current) => {
+            const merged = [...current];
+            for (const { id, label } of parsed) {
+                const existing = merged.find((p) => p.id === id);
+                if (!existing) merged.push({ id, label });
+                else if (existing.label === id && label !== id) existing.label = label;
+            }
+            return merged;
+        });
+        if (target) {
+            setCharts((current) =>
+                current.map((c) =>
+                    c.symbol === target
+                        ? { ...c, studies: [...new Set([...c.studies, ...parsed.map((p) => p.id)])] }
+                        : c,
+                ),
+            );
+        }
+        setFavoritesInput('');
+        setNotice('');
+    };
+
+    /** Register the favorites and put them on every chart of the wall. */
+    const addFavoritesToAllCharts = () => {
+        const parsed = parseFavorites(favoritesInput);
+        if (!parsed.length) {
+            setNotice(t('badPublishedId'));
+            return;
+        }
+        setPublished((current) => {
+            const merged = [...current];
+            for (const { id, label } of parsed) {
+                const existing = merged.find((p) => p.id === id);
+                if (!existing) merged.push({ id, label });
+                else if (existing.label === id && label !== id) existing.label = label;
+            }
+            return merged;
+        });
+        setCharts((current) =>
+            current.map((c) => ({
+                ...c,
+                studies: [...new Set([...c.studies, ...parsed.map((p) => p.id)])],
+            })),
+        );
+        setFavoritesInput('');
+        setNotice('');
     };
 
     const allStudies = [...BUILT_IN.map((i) => ({ id: i.id, label: i.label })), ...published];
     const targetChart = charts.find((c) => c.symbol === target) ?? null;
-
     return (
         <div className="flex flex-col gap-3">
             <div className="hatch">
@@ -703,6 +811,38 @@ const MonitorWall = ({ initialCharts }: { initialCharts: Chart[] }) => {
                         <button type="button" onClick={addPublished} className="btn btn-ghost h-9 px-3 text-[13px]">{t('addPublished')}</button>
                     </div>
                     <p className="text-[12px] text-faint">{t('publishedHint')}</p>
+                </div>
+            </div>
+
+            <div className="hatch">
+                <div className="section-head">
+                    <div className="min-w-0">
+                        <h2 className="section-title">{t('favoritesTitle')}</h2>
+                        <p className="section-sub">{t('favoritesSub')}</p>
+                    </div>
+                </div>
+                <div className="card flex flex-col gap-2 p-3">
+                    <textarea
+                        value={favoritesInput}
+                        onChange={(e) => setFavoritesInput(e.target.value)}
+                        rows={4}
+                        placeholder={t('favoritesPlaceholder')}
+                        className="mono min-w-0 rounded-[10px] bg-hover/60 px-3 py-2 text-[13px] outline-none"
+                    />
+                    <div className="flex flex-wrap items-center gap-2">
+                        <button type="button" onClick={addFavorites} className="btn btn-ghost h-9 px-3 text-[13px]">
+                            {t('addFavorites')}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={addFavoritesToAllCharts}
+                            className="btn btn-ghost h-9 px-3 text-[13px]"
+                            disabled={!target}
+                        >
+                            {t('addFavoritesToAll')}
+                        </button>
+                    </div>
+                    <p className="text-[12px] text-faint">{t('favoritesHint')}</p>
                 </div>
             </div>
 

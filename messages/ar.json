@@ -638,6 +638,12 @@
     "applyToAll": "نسخ إلى كل الرسوم",
     "applyToAllHint": "نسخ مؤشرات Pine لهذا الرسم إلى بقية الرسوم على اللوحة.",
     "perChartIndicators": "لكل رسم مؤشراته الخاصة",
-    "removeIndicator": "إزالة المؤشر"
+    "removeIndicator": "إزالة المؤشر",
+    "favoritesTitle": "مفضلات TradingView",
+    "favoritesSub": "أضف السكربتات التي وضعت نجمة عليها في TradingView إلى هذه الشاشة.",
+    "favoritesPlaceholder": "PUB;807cab71605b4b2e8ef7e0e705854af4 | Stochastic Z-Score [AlgoAlpha]\nPUB;e15e52b27d234f238522c37120642c73 | Volume Footprint",
+    "favoritesHint": "واحد في كل سطر، بصيغة PUB;<id> أو PUB;<id> | الاسم. انسخ المعرّف من أيقونة النجمة في نافذة مؤشرات TradingView.",
+    "addFavorites": "أضف المفضلات",
+    "addFavoritesToAll": "أضف المفضلات إلى كل الرسوم"
   }
 }

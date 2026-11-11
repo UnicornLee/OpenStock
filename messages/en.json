@@ -638,6 +638,12 @@
     "applyToAll": "Copy to all charts",
     "applyToAllHint": "Copy this chart's Pine indicators to every other chart on the wall.",
     "perChartIndicators": "every chart has its own indicators",
-    "removeIndicator": "Remove indicator"
+    "removeIndicator": "Remove indicator",
+    "favoritesTitle": "TradingView favorites",
+    "favoritesSub": "Bring the scripts you starred on TradingView into this wall.",
+    "favoritesPlaceholder": "PUB;807cab71605b4b2e8ef7e0e705854af4 | Stochastic Z-Score [AlgoAlpha]\nPUB;e15e52b27d234f238522c37120642c73 | Volume Footprint",
+    "favoritesHint": "One per line, as PUB;<id> or PUB;<id> | Name. Copy the id from the star icon in TradingView's indicator dialog.",
+    "addFavorites": "Add favorites",
+    "addFavoritesToAll": "Add favorites to every chart"
   }
 }
